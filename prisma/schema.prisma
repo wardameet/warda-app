@@ -1,0 +1,264 @@
+// Warda Database Schema
+// PostgreSQL on AWS RDS
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ USERS ============
+
+model User {
+  id            String    @id @default(uuid())
+  email         String?   @unique
+  cognitoId     String?   @unique
+  userType      UserType
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // For residents
+  resident      Resident?
+  
+  // For family members
+  familyMember  FamilyMember?
+  
+  // For staff
+  staffMember   StaffMember?
+  
+  // Messages
+  sentMessages      Message[] @relation("SentMessages")
+  receivedMessages  Message[] @relation("ReceivedMessages")
+}
+
+enum UserType {
+  RESIDENT
+  FAMILY
+  STAFF
+  ADMIN
+}
+
+// ============ RESIDENTS ============
+
+model Resident {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id])
+  
+  firstName       String
+  lastName        String
+  preferredName   String?
+  dateOfBirth     DateTime?
+  roomNumber      String?
+  
+  // Care home assignment
+  careHomeId      String?
+  careHome        CareHome? @relation(fields: [careHomeId], references: [id])
+  
+  // Settings
+  pin             String?   // 4-digit PIN for login
+  language        String    @default("en-GB")
+  voicePreference String    @default("female") // For Polly TTS
+  
+  // Family contacts
+  familyContacts  FamilyContact[]
+  
+  // Health
+  medications     Medication[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// ============ FAMILY ============
+
+model FamilyMember {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id])
+  
+  firstName       String
+  lastName        String
+  phone           String?
+  
+  // Contacts (residents they're connected to)
+  contacts        FamilyContact[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model FamilyContact {
+  id              String    @id @default(uuid())
+  
+  residentId      String
+  resident        Resident  @relation(fields: [residentId], references: [id])
+  
+  familyMemberId  String
+  familyMember    FamilyMember @relation(fields: [familyMemberId], references: [id])
+  
+  relationship    String    // daughter, son, spouse, etc.
+  isPrimary       Boolean   @default(false)
+  isBlocked       Boolean   @default(false)
+  
+  // Permissions
+  canViewMedications  Boolean @default(false)
+  canViewMood         Boolean @default(true)
+  canReceiveAlerts    Boolean @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([residentId, familyMemberId])
+}
+
+// ============ STAFF ============
+
+model StaffMember {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id])
+  
+  firstName       String
+  lastName        String
+  role            StaffRole
+  
+  careHomeId      String?
+  careHome        CareHome? @relation(fields: [careHomeId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum StaffRole {
+  CARER
+  NURSE
+  MANAGER
+  ADMIN
+}
+
+// ============ CARE HOMES ============
+
+model CareHome {
+  id              String    @id @default(uuid())
+  name            String
+  address         String?
+  phone           String?
+  
+  residents       Resident[]
+  staff           StaffMember[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// ============ MESSAGES ============
+
+model Message {
+  id              String    @id @default(uuid())
+  
+  senderId        String
+  sender          User      @relation("SentMessages", fields: [senderId], references: [id])
+  
+  recipientId     String
+  recipient       User      @relation("ReceivedMessages", fields: [recipientId], references: [id])
+  
+  content         String?
+  messageType     MessageType @default(TEXT)
+  
+  // Media (for photos, voice messages)
+  mediaKey        String?   // S3 key
+  mediaThumbnail  String?   // S3 key for thumbnail
+  
+  // Status
+  status          MessageStatus @default(SENT)
+  readAt          DateTime?
+  
+  // Warda-specific
+  sentViaWarda    Boolean   @default(false)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum MessageType {
+  TEXT
+  PHOTO
+  VOICE
+  VIDEO
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+// ============ HEALTH ============
+
+model Medication {
+  id              String    @id @default(uuid())
+  
+  residentId      String
+  resident        Resident  @relation(fields: [residentId], references: [id])
+  
+  name            String
+  dosage          String?
+  instructions    String?
+  
+  // Schedule
+  times           String[]  // ["08:00", "20:00"]
+  
+  isActive        Boolean   @default(true)
+  
+  // Tracking
+  logs            MedicationLog[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model MedicationLog {
+  id              String    @id @default(uuid())
+  
+  medicationId    String
+  medication      Medication @relation(fields: [medicationId], references: [id])
+  
+  scheduledTime   DateTime
+  takenAt         DateTime?
+  skipped         Boolean   @default(false)
+  notes           String?
+  
+  confirmedBy     String?   // Staff member ID if manually confirmed
+  
+  createdAt       DateTime  @default(now())
+}
+
+// ============ ALERTS ============
+
+model Alert {
+  id              String    @id @default(uuid())
+  
+  residentId      String
+  careHomeId      String
+  
+  alertType       AlertType
+  message         String?
+  
+  isResolved      Boolean   @default(false)
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  
+  createdAt       DateTime  @default(now())
+}
+
+enum AlertType {
+  HELP_BUTTON
+  MEDICATION_MISSED
+  MOOD_CONCERN
+  INACTIVITY
+  FALL_DETECTED
+}
