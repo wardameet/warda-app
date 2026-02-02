@@ -11,7 +11,13 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio"
   },
-  "keywords": ["elderly", "care", "companion", "ai", "warda"],
+  "keywords": [
+    "elderly",
+    "care",
+    "companion",
+    "ai",
+    "warda"
+  ],
   "author": "Tweed Wellness Ltd",
   "license": "PROPRIETARY",
   "dependencies": {
@@ -24,7 +30,7 @@
     "@aws-sdk/client-transcribe-streaming": "^3.700.0",
     "@aws-sdk/lib-dynamodb": "^3.700.0",
     "@aws-sdk/s3-request-presigner": "^3.700.0",
-    "@prisma/client": "^6.3.0",
+    "@prisma/client": "^6.19.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -36,7 +42,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.9",
-    "prisma": "^6.3.0"
+    "prisma": "^6.19.2"
   },
   "engines": {
     "node": ">=20.0.0"
