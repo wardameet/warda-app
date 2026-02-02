@@ -17,6 +17,7 @@ const authRoutes = require('./routes/auth');
 const conversationRoutes = require('./routes/conversation');
 const familyRoutes = require('./routes/family');
 const messagesRoutes = require('./routes/messages');
+const voiceRoutes = require('./routes/voice');
 
 // Import services
 const { initializeRedis } = require('./services/redis');
@@ -54,6 +55,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/conversation', conversationRoutes);
 app.use('/api/family', familyRoutes);
 app.use('/api/messages', messagesRoutes);
+app.use('/api/voice', voiceRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

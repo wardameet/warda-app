@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ============ TYPES ============
-type Screen = 'home' | 'talk' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith';
+type Screen = 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith';
 
 interface Contact {
   id: string;
@@ -184,7 +184,7 @@ const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string 
     </div>
     <motion.div className="grid grid-cols-6 gap-4 mb-6" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
       <NavCard icon="💬" label="Chat with Warda" onClick={() => onNavigate('talk')} />
-      <NavCard icon="🎤" label="Talk to Warda" onClick={() => onNavigate('talk')} />
+      <NavCard icon="🎤" label="Talk to Warda" onClick={() => onNavigate('voice')} />
       <NavCard icon="👨‍👩‍👧" label="Family" onClick={() => onNavigate('family')} badge={3} />
       <NavCard icon="🙏" label="My Faith" onClick={() => onNavigate('faith')} />
       <NavCard icon="🎯" label="Activities" onClick={() => onNavigate('activities')} />
@@ -481,6 +481,75 @@ const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNa
 
 // ============ MAIN APP ============
 
+// VOICE SCREEN
+const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => {
+  const [isListening, setIsListening] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [status, setStatus] = useState("Tap the microphone to talk to Warda");
+  const [transcript, setTranscript] = useState("");
+  const playAudio = (base64Audio: string) => {
+    const audio = new Audio("data:audio/mpeg;base64," + base64Audio);
+    setIsPlaying(true);
+    audio.onended = () => setIsPlaying(false);
+    audio.play();
+  };
+  const handleMicClick = async () => {
+    if (isListening || isPlaying) return;
+    setIsListening(true);
+    setStatus("Listening...");
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setStatus("Speech not supported. Try Chrome.");
+      setIsListening(false);
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-GB";
+    recognition.continuous = false;
+    recognition.onresult = async (event: any) => {
+      const text = event.results[0][0].transcript;
+      setTranscript(text);
+      setStatus("Warda is responding...");
+      setIsListening(false);
+      try {
+        const res = await fetch("http://13.40.187.182:3001/api/voice/conversation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: "margaret123", message: text, context: { residentName: "Margaret" } })
+        });
+        const data = await res.json();
+        if (data.success && data.audio) {
+          setStatus("Warda is speaking...");
+          playAudio(data.audio);
+        }
+      } catch (err) { setStatus("Connection error. Tap to try again."); }
+    };
+    recognition.onerror = () => { setStatus("Could not hear you. Tap again."); setIsListening(false); };
+    recognition.start();
+  };
+  return (
+    <motion.div key="voice" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: "Georgia, serif" }}>🎤 Talk to Warda</h1>
+        <HelpButton />
+      </div>
+      <div className="flex-1 flex flex-col items-center justify-center gap-8" style={{ zIndex: 10 }}>
+        <div className="bg-white/80 backdrop-blur-md rounded-3xl p-8 text-center shadow-xl border-2 border-white/50">
+          <p className="text-2xl text-gray-700 mb-4">{status}</p>
+          {transcript && <p className="text-lg text-gray-500 italic">You said: "{transcript}"</p>}
+        </div>
+        <motion.button onClick={handleMicClick} disabled={isListening || isPlaying}
+          className="w-40 h-40 rounded-full flex items-center justify-center text-7xl shadow-2xl"
+          style={{ background: isListening ? "linear-gradient(135deg, #F87171 0%, #EF4444 100%)" : isPlaying ? "linear-gradient(135deg, #A78BFA 0%, #8B5CF6 100%)" : "linear-gradient(135deg, #5EEAD4 0%, #14B8A6 100%)" }}
+          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          {isListening ? "👂" : isPlaying ? "🔊" : "🎤"}
+        </motion.button>
+        <p className="text-xl text-teal-700 font-semibold">{isListening ? "Listening..." : isPlaying ? "Warda is speaking..." : "Tap to speak"}</p>
+      </div>
+      <BottomBar onBack={() => onNavigate("home")} onHome={() => onNavigate("home")} />
+    </motion.div>
+  );
+};
 // FAITH SCREEN
 const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => (
   <motion.div key="faith" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
@@ -566,6 +635,7 @@ function App() {
       <AnimatePresence mode="wait">
         {currentScreen === 'home' && <HomeScreen onNavigate={handleNavigate} time={timeString} />}
         {currentScreen === 'talk' && <TalkScreen onNavigate={handleNavigate} />}
+        {currentScreen === 'voice' && <VoiceScreen onNavigate={handleNavigate} />}
         {currentScreen === 'family' && <FamilyScreen onNavigate={handleNavigate} onSelectContact={handleSelectContact} />}
         {currentScreen === 'contact' && selectedContact && <ContactScreen contact={selectedContact} onNavigate={handleNavigate} />}
         {currentScreen === 'activities' && <ActivitiesScreen onNavigate={handleNavigate} />}
