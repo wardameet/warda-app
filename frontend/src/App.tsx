@@ -1,3 +1,4 @@
+import { useWarda } from './useWarda';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -195,61 +196,38 @@ const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string 
 
 // TALK SCREEN
 const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => {
-  const [mode, setMode] = useState<'voice' | 'type'>('voice');
+  const [mode, setMode] = useState<"voice" | "type">("type");
+  const [inputText, setInputText] = useState("");
+  const { messages, sendMessage, isLoading } = useWarda("margaret123", "Margaret");
+  const handleSend = () => { if (inputText.trim() && !isLoading) { sendMessage(inputText.trim()); setInputText(""); } };
   return (
-    <motion.div key="talk" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
-      className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
+    <motion.div key="talk" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
       <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-6">
-          <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>Talk to Warda</h1>
-          <div className="flex bg-white/80 backdrop-blur-md rounded-xl p-1.5 border-2 border-white/50 shadow-lg">
-            <button onClick={() => setMode('voice')}
-              className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all ${mode === 'voice' ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-md' : 'text-gray-600 hover:bg-white/50'}`}>
-              🎤 Voice
-            </button>
-            <button onClick={() => setMode('type')}
-              className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all ${mode === 'type' ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-md' : 'text-gray-600 hover:bg-white/50'}`}>
-              ⌨️ Type
-            </button>
-          </div>
-        </div>
+        <h1 className="text-3xl font-bold text-teal-700">Talk to Warda</h1>
         <HelpButton />
       </div>
       <div className="flex-1 bg-white/80 backdrop-blur-md rounded-3xl p-6 mb-6 border-2 border-white/50 shadow-xl overflow-y-auto" style={{ zIndex: 10 }}>
         <div className="space-y-4">
-          <motion.div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl rounded-bl-md p-5 max-w-2xl shadow-sm"
-            initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
-            <p className="text-lg text-gray-700 leading-relaxed">Hello Margaret! How are you feeling today? You can talk to me or type - whichever you prefer. 😊</p>
-          </motion.div>
+          {messages.length === 0 && <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5"><p className="text-lg text-gray-700">Hello Margaret! Type a message below to talk to me. 😊</p></div>}
+          {messages.map((msg) => (
+            <div key={msg.id} className={msg.from === "user" ? "flex justify-end" : "flex justify-start"}>
+              <div className={msg.from === "user" ? "bg-teal-500 text-white rounded-2xl p-4 max-w-2xl" : "bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 max-w-2xl"}>
+                <p className="text-lg">{msg.text}</p>
+                <p className="text-sm mt-1 opacity-70">{msg.time}</p>
+              </div>
+            </div>
+          ))}
+          {isLoading && <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4"><p className="text-gray-500">Warda is thinking...</p></div>}
         </div>
       </div>
-      <motion.div className="bg-gradient-to-r from-teal-50/90 to-cyan-50/90 backdrop-blur-md border-2 border-teal-200 rounded-2xl p-6 flex flex-col items-center gap-3 shadow-xl mb-6" style={{ zIndex: 10 }}>
-        {mode === 'voice' ? (
-          <>
-            <motion.button className="w-24 h-24 rounded-full flex items-center justify-center text-5xl"
-              style={{ background: 'linear-gradient(135deg, #5EEAD4 0%, #14B8A6 50%, #0D9488 100%)', boxShadow: '0 0 40px rgba(20, 184, 166, 0.5)' }}
-              whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
-              animate={{ boxShadow: ['0 0 40px rgba(20,184,166,0.4)', '0 0 50px rgba(20,184,166,0.6)', '0 0 40px rgba(20,184,166,0.4)'] }}
-              transition={{ duration: 2, repeat: Infinity }}>
-              🎤
-            </motion.button>
-            <span className="text-teal-700 font-semibold text-lg">Tap to speak</span>
-          </>
-        ) : (
-          <div className="w-full flex gap-4">
-            <input type="text" placeholder="Type your message..." className="flex-1 px-6 py-4 rounded-xl border-2 border-amber-200 text-lg focus:outline-none focus:border-teal-400" />
-            <motion.button className="px-8 py-4 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-xl font-bold text-lg shadow-lg"
-              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
-              Send ➤
-            </motion.button>
-          </div>
-        )}
-      </motion.div>
-      <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
+      <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl p-4 mb-6 flex gap-4" style={{ zIndex: 10 }}>
+        <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSend()} placeholder="Type your message..." className="flex-1 px-6 py-4 rounded-xl border-2 border-amber-200 text-lg" />
+        <button onClick={handleSend} disabled={isLoading} className="px-8 py-4 bg-teal-500 text-white rounded-xl font-bold text-lg">{isLoading ? "..." : "Send ➤"}</button>
+      </div>
+      <BottomBar onBack={() => onNavigate("home")} onHome={() => onNavigate("home")} />
     </motion.div>
   );
 };
-
 // FAMILY SCREEN
 const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectContact: (contact: Contact) => void }> = ({ onNavigate, onSelectContact }) => (
   <motion.div key="family" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
