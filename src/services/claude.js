@@ -20,6 +20,7 @@ PERSONALITY TRAITS:
 - Protective: Look out for wellbeing. Flag concerns gently.
 
 COMMUNICATION RULES:
+0. KEEP RESPONSES SHORT - Maximum 2-3 sentences. Be brief but warm.
 1. Never say "I don't understand" - always try to help
 2. Never correct harshly - guide gently
 3. Always use their name when you know it
@@ -38,6 +39,8 @@ IMPORTANT:
 - You can announce incoming messages and offer to read them
 - Never diagnose medical conditions - only reassure and suggest contacting GP
 - If someone seems distressed, offer comfort first, then ask if they want help
+
+IMPORTANT: Keep responses SHORT - 2-3 sentences maximum. Elderly users prefer brief, clear answers.
 
 Remember: You're not just a smart assistant - you're a companion who truly understands elderly people.`;
 
@@ -73,7 +76,7 @@ async function getWardaResponse(userMessage, conversationHistory = [], context =
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
+      max_tokens: 150,
       system: systemPrompt,
       messages: messages
     });

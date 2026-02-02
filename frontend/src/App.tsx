@@ -217,7 +217,7 @@ const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavi
               </div>
             </div>
           ))}
-          {isLoading && <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4"><p className="text-gray-500">Warda is thinking...</p></div>}
+          {isLoading && <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4"><p className="text-gray-500">One moment, dear...</p></div>}
         </div>
       </div>
       <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl p-4 mb-6 flex gap-4" style={{ zIndex: 10 }}>
