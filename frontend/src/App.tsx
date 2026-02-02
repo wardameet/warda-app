@@ -217,7 +217,7 @@ const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavi
               </div>
             </div>
           ))}
-          {isLoading && <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4"><p className="text-gray-500">One moment, dear...</p></div>}
+          {isLoading && <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4"><div className="flex gap-2 items-center"><span className="text-2xl">😊</span><div className="flex gap-1"><span className="w-3 h-3 bg-teal-400 rounded-full animate-bounce" style={{animationDelay: "0ms"}}></span><span className="w-3 h-3 bg-teal-400 rounded-full animate-bounce" style={{animationDelay: "150ms"}}></span><span className="w-3 h-3 bg-teal-400 rounded-full animate-bounce" style={{animationDelay: "300ms"}}></span></div></div></div>}
         </div>
       </div>
       <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl p-4 mb-6 flex gap-4" style={{ zIndex: 10 }}>
