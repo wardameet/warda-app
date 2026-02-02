@@ -262,3 +262,39 @@ enum AlertType {
   INACTIVITY
   FALL_DETECTED
 }
+
+// ============ RESIDENT PROFILE (Therapeutic) ============
+
+model ResidentProfile {
+  id              String    @id @default(uuid())
+  
+  residentId      String    @unique
+  
+  // Warda's Persona for this resident
+  wardaBackstory  String?   // "Warda is widowed, has 2 children, loves gardening"
+  wardaAge        String?   // "in her 60s"
+  wardaTraits     String[]  // ["widowed", "mother", "Scottish"]
+  
+  // Topics to handle carefully
+  avoidTopics     String[]  // ["children", "hospital", "war"]
+  sensitiveTopics String[]  // ["late husband William", "daughter who moved away"]
+  
+  // Positive topics
+  joyTopics       String[]  // ["grandchildren", "gardening", "music", "baking"]
+  memories        String[]  // ["worked as nurse", "met husband at dance", "grew up in Glasgow"]
+  
+  // Family knowledge
+  familyDetails   String?   // JSON: {"daughter": "Sarah, lives in London", "grandson": "Oliver, age 8"}
+  
+  // Communication style
+  useReligious    Boolean   @default(false)
+  useScottish     Boolean   @default(false)
+  useWelsh        Boolean   @default(false)
+  useIrish        Boolean   @default(false)
+  
+  // Therapeutic goals
+  therapyGoals    String[]  // ["reduce loneliness", "memory exercises", "encourage movement"]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

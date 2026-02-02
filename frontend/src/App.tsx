@@ -183,7 +183,8 @@ const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string 
       </div>
     </div>
     <motion.div className="grid grid-cols-6 gap-4 mb-6" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-      <NavCard icon="💬" label="Talk to Warda" onClick={() => onNavigate('talk')} />
+      <NavCard icon="💬" label="Chat with Warda" onClick={() => onNavigate('talk')} />
+      <NavCard icon="🎤" label="Talk to Warda" onClick={() => onNavigate('talk')} />
       <NavCard icon="👨‍👩‍👧" label="Family" onClick={() => onNavigate('family')} badge={3} />
       <NavCard icon="🎯" label="Activities" onClick={() => onNavigate('activities')} />
       <NavCard icon="❤️" label="My Health" onClick={() => onNavigate('health')} />
