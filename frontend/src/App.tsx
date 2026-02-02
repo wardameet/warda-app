@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ============ TYPES ============
-type Screen = 'home' | 'talk' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse';
+type Screen = 'home' | 'talk' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith';
 
 interface Contact {
   id: string;
@@ -186,6 +186,7 @@ const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string 
       <NavCard icon="💬" label="Chat with Warda" onClick={() => onNavigate('talk')} />
       <NavCard icon="🎤" label="Talk to Warda" onClick={() => onNavigate('talk')} />
       <NavCard icon="👨‍👩‍👧" label="Family" onClick={() => onNavigate('family')} badge={3} />
+      <NavCard icon="🙏" label="My Faith" onClick={() => onNavigate('faith')} />
       <NavCard icon="🎯" label="Activities" onClick={() => onNavigate('activities')} />
       <NavCard icon="❤️" label="My Health" onClick={() => onNavigate('health')} />
       <NavCard icon="📅" label="My Day" onClick={() => onNavigate('myday')} />
@@ -479,6 +480,46 @@ const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNa
 );
 
 // ============ MAIN APP ============
+
+// FAITH SCREEN
+const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => (
+  <motion.div key="faith" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
+    className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
+    <div className="flex justify-between items-center mb-6">
+      <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🙏 My Faith</h1>
+      <HelpButton />
+    </div>
+    <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-4 mb-6" style={{ zIndex: 10 }}>
+      <p className="text-lg text-amber-800 text-center">Find comfort, peace, and inspiration</p>
+    </div>
+    <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
+      <motion.button className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200"
+        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">✝️</span>
+        <span className="text-2xl font-bold text-blue-800">Christian</span>
+        <span className="text-blue-600 text-center">Bible, Hymns, Prayers</span>
+      </motion.button>
+      <motion.button className="bg-gradient-to-br from-green-50 to-green-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200"
+        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">☪️</span>
+        <span className="text-2xl font-bold text-green-800">Muslim</span>
+        <span className="text-green-600 text-center">Quran, Duas, Nasheeds</span>
+      </motion.button>
+      <motion.button className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-amber-200"
+        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">✡️</span>
+        <span className="text-2xl font-bold text-amber-800">Jewish</span>
+        <span className="text-amber-600 text-center">Torah, Psalms, Prayers</span>
+      </motion.button>
+    </div>
+    <div className="bg-white/80 backdrop-blur-md rounded-2xl p-6 mb-6 border-2 border-white/50 shadow-lg" style={{ zIndex: 10 }}>
+      <h2 className="text-xl font-bold text-gray-700 mb-3">📖 Todays Verse</h2>
+      <p className="text-lg text-gray-600 italic">"The Lord is my shepherd; I shall not want. He makes me lie down in green pastures."</p>
+      <p className="text-gray-500 mt-2">- Psalm 23:1-2</p>
+    </div>
+    <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
+  </motion.div>
+);
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -529,6 +570,7 @@ function App() {
         {currentScreen === 'contact' && selectedContact && <ContactScreen contact={selectedContact} onNavigate={handleNavigate} />}
         {currentScreen === 'activities' && <ActivitiesScreen onNavigate={handleNavigate} />}
         {currentScreen === 'health' && <HealthScreen onNavigate={handleNavigate} />}
+        {currentScreen === 'faith' && <FaithScreen onNavigate={handleNavigate} />}
         {currentScreen === 'myday' && <MyDayScreen onNavigate={handleNavigate} />}
         {currentScreen === 'browse' && <BrowseScreen onNavigate={handleNavigate} />}
       </AnimatePresence>
