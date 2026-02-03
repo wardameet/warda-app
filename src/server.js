@@ -36,7 +36,7 @@ const httpServer = createServer(app);
 // Socket.io setup
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://13.40.187.182:3000', 'http://13.40.187.182:3002', 'http://13.40.187.182:3003', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003'],
+    origin: ['https://app.meetwarda.com', 'https://admin.meetwarda.com', 'https://staff.meetwarda.com', 'https://family.meetwarda.com', 'https://meetwarda.com', 'http://13.40.187.182:3000', 'http://13.40.187.182:3002', 'http://13.40.187.182:3003', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003'],
     methods: ['GET', 'POST']
   }
 });
@@ -46,7 +46,7 @@ app.use(helmet({
   contentSecurityPolicy: false // Disable for development
 }));
 app.use(cors({
-  origin: ['http://13.40.187.182:3000', 'http://13.40.187.182:3002', 'http://13.40.187.182:3003', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003'],
+  origin: ['https://app.meetwarda.com', 'https://admin.meetwarda.com', 'https://staff.meetwarda.com', 'https://family.meetwarda.com', 'https://meetwarda.com', 'http://13.40.187.182:3000', 'http://13.40.187.182:3002', 'http://13.40.187.182:3003', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003'],
   credentials: true
 }));
 app.use(morgan('dev'));
