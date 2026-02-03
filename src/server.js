@@ -36,7 +36,7 @@ const httpServer = createServer(app);
 // Socket.io setup
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: ['http://13.40.187.182:3000', 'http://13.40.187.182:3002', 'http://localhost:3000', 'http://localhost:3002'],
     methods: ['GET', 'POST']
   }
 });
@@ -46,7 +46,7 @@ app.use(helmet({
   contentSecurityPolicy: false // Disable for development
 }));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: ['http://13.40.187.182:3000', 'http://13.40.187.182:3002', 'http://localhost:3000', 'http://localhost:3002'],
   credentials: true
 }));
 app.use(morgan('dev'));
