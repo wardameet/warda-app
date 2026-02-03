@@ -19,6 +19,13 @@ const familyRoutes = require('./routes/family');
 const messagesRoutes = require('./routes/messages');
 const voiceRoutes = require('./routes/voice');
 
+// Admin Portal Routes
+const adminAuthRoutes = require('./routes/admin/auth');
+const adminCareHomeRoutes = require('./routes/admin/careHomes');
+const adminResidentRoutes = require('./routes/admin/residents');
+const adminStaffRoutes = require('./routes/admin/staff');
+const adminFamilyRoutes = require('./routes/admin/family');
+
 // Import services
 const { initializeRedis } = require('./services/redis');
 const { initializeSocket } = require('./services/socket');
@@ -56,6 +63,13 @@ app.use('/api/conversation', conversationRoutes);
 app.use('/api/family', familyRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/voice', voiceRoutes);
+
+// Admin Portal API
+app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/admin/care-homes', adminCareHomeRoutes);
+app.use('/api/admin/residents', adminResidentRoutes);
+app.use('/api/admin/staff', adminStaffRoutes);
+app.use('/api/admin', adminFamilyRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
