@@ -1,6 +1,14 @@
+import { useSocket } from './useSocket';
+import MessageOverlay from './MessageOverlay';
 import { useWarda } from './useWarda';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// ============ CONFIG ============
+// TODO: These should come from login/PIN screen - hardcoded for pilot
+const RESIDENT_ID = 'margaret123';
+const RESIDENT_NAME = 'Margaret';
+const CARE_HOME_ID = 'sunny-gardens-001';
 
 // ============ TYPES ============
 type Screen = 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith';
@@ -90,12 +98,31 @@ const LightRay: React.FC<{ left: number; width: number; opacity: number; delay: 
 );
 
 // ============ SHARED COMPONENTS ============
-const HelpButton: React.FC = () => (
-  <motion.button className="bg-gradient-to-r from-red-500 to-red-600 text-white px-8 py-4 rounded-2xl font-bold text-xl flex items-center gap-3 shadow-xl border-2 border-red-400"
-    style={{ boxShadow: '0 0 30px rgba(239, 68, 68, 0.4)', zIndex: 10 }}
+
+// HELP BUTTON - Now wired to WebSocket!
+const HelpButton: React.FC<{ onPress: () => void; confirmed: boolean }> = ({ onPress, confirmed }) => (
+  <motion.button
+    onClick={onPress}
+    className={`${confirmed ? 'bg-gradient-to-r from-green-500 to-green-600 border-green-400' : 'bg-gradient-to-r from-red-500 to-red-600 border-red-400'} text-white px-8 py-4 rounded-2xl font-bold text-xl flex items-center gap-3 shadow-xl border-2`}
+    style={{ boxShadow: confirmed ? '0 0 30px rgba(34, 197, 94, 0.4)' : '0 0 30px rgba(239, 68, 68, 0.4)', zIndex: 10 }}
     whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
-    🆘 Help
+    {confirmed ? '✅ Help is coming!' : '🆘 Help'}
   </motion.button>
+);
+
+// CONNECTION INDICATOR
+const ConnectionDot: React.FC<{ connected: boolean }> = ({ connected }) => (
+  <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 100, display: 'flex', alignItems: 'center', gap: 6 }}>
+    <motion.div
+      animate={connected ? { scale: [1, 1.2, 1] } : { opacity: [1, 0.3, 1] }}
+      transition={{ duration: connected ? 3 : 1, repeat: Infinity }}
+      style={{
+        width: 10, height: 10, borderRadius: '50%',
+        background: connected ? '#22C55E' : '#EF4444',
+        boxShadow: connected ? '0 0 8px rgba(34,197,94,0.5)' : '0 0 8px rgba(239,68,68,0.5)',
+      }}
+    />
+  </div>
 );
 
 const BackButton: React.FC<{ onClick: () => void; disabled?: boolean }> = ({ onClick, disabled }) => (
@@ -155,7 +182,7 @@ const WardaFace: React.FC<{ onClick: () => void; hasNotification: boolean }> = (
 // ============ SCREEN COMPONENTS ============
 
 // HOME SCREEN
-const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string }> = ({ onNavigate, time }) => (
+const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, time, onHelp, helpConfirmed }) => (
   <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
@@ -168,17 +195,17 @@ const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string 
           <span className="text-lg font-semibold text-gray-700">12°C</span>
         </div>
       </div>
-      <HelpButton />
+      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
     <div className="flex-1 flex flex-col items-center justify-center gap-8">
       <WardaFace onClick={() => onNavigate('talk')} hasNotification={true} />
       <div className="text-center" style={{ zIndex: 10 }}>
         <motion.h1 className="text-5xl font-bold text-teal-700 mb-3" style={{ fontFamily: 'Georgia, serif' }}
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          Good afternoon, Margaret!
+          Good afternoon, {RESIDENT_NAME}!
         </motion.h1>
         <motion.p className="text-xl text-gray-600" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          Sarah sent you a photo. Tap me to chat!
+          Tap me to chat!
         </motion.p>
       </div>
     </div>
@@ -197,7 +224,7 @@ const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string 
 );
 
 // TALK SCREEN
-const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => {
+const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
   const [mode, setMode] = useState<"voice" | "type">("type");
   const [inputText, setInputText] = useState("");
   const { messages, sendMessage, isLoading } = useWarda("margaret123", "Margaret");
@@ -206,7 +233,7 @@ const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavi
     <motion.div key="talk" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-teal-700">Talk to Warda</h1>
-        <HelpButton />
+        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
       </div>
       <div className="flex-1 bg-white/80 backdrop-blur-md rounded-3xl p-6 mb-6 border-2 border-white/50 shadow-xl overflow-y-auto" style={{ zIndex: 10 }}>
         <div className="space-y-4">
@@ -230,13 +257,14 @@ const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavi
     </motion.div>
   );
 };
+
 // FAMILY SCREEN
-const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectContact: (contact: Contact) => void }> = ({ onNavigate, onSelectContact }) => (
+const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectContact: (contact: Contact) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onSelectContact, onHelp, helpConfirmed }) => (
   <motion.div key="family" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>👨‍👩‍👧 Family</h1>
-      <HelpButton />
+      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
     <div className="flex-1 grid grid-cols-3 gap-6 mb-6 overflow-y-auto" style={{ zIndex: 10 }}>
       {mockContacts.map((contact) => (
@@ -271,7 +299,7 @@ const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectCon
 );
 
 // CONTACT DETAIL SCREEN
-const ContactScreen: React.FC<{ contact: Contact; onNavigate: (screen: Screen) => void }> = ({ contact, onNavigate }) => (
+const ContactScreen: React.FC<{ contact: Contact; onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ contact, onNavigate, onHelp, helpConfirmed }) => (
   <motion.div key="contact" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
@@ -284,7 +312,7 @@ const ContactScreen: React.FC<{ contact: Contact; onNavigate: (screen: Screen) =
           <p className="text-gray-500">{contact.relation}</p>
         </div>
       </div>
-      <HelpButton />
+      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
     <div className="flex gap-4 mb-6" style={{ zIndex: 10 }}>
       <motion.button className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-lg"
@@ -318,35 +346,29 @@ const ContactScreen: React.FC<{ contact: Contact; onNavigate: (screen: Screen) =
 );
 
 // ACTIVITIES SCREEN
-const ActivitiesScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => (
+const ActivitiesScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => (
   <motion.div key="activities" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🎯 Activities</h1>
-      <HelpButton />
+      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
     <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-2xl p-4 mb-6 flex items-center gap-4" style={{ zIndex: 10 }}>
       <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-2xl">😊</div>
-      <p className="text-lg text-teal-800">It's a lovely afternoon, Margaret. How about some gentle stretches or your favourite music?</p>
+      <p className="text-lg text-teal-800">It's a lovely afternoon, {RESIDENT_NAME}. How about some gentle stretches or your favourite music?</p>
     </div>
     <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
       <motion.button className="bg-gradient-to-br from-purple-100 to-purple-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-300"
         whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">🎵</span>
-        <span className="text-2xl font-bold text-purple-800">Music</span>
-        <span className="text-purple-600">Songs, radio, decades</span>
+        <span className="text-6xl">🎵</span><span className="text-2xl font-bold text-purple-800">Music</span><span className="text-purple-600">Songs, radio, decades</span>
       </motion.button>
       <motion.button className="bg-gradient-to-br from-orange-100 to-orange-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-orange-300"
         whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">🧩</span>
-        <span className="text-2xl font-bold text-orange-800">Games</span>
-        <span className="text-orange-600">Puzzles, trivia, memory</span>
+        <span className="text-6xl">🧩</span><span className="text-2xl font-bold text-orange-800">Games</span><span className="text-orange-600">Puzzles, trivia, memory</span>
       </motion.button>
       <motion.button className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-300"
         whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">🧘</span>
-        <span className="text-2xl font-bold text-green-800">Exercises</span>
-        <span className="text-green-600">Chair yoga, stretches</span>
+        <span className="text-6xl">🧘</span><span className="text-2xl font-bold text-green-800">Exercises</span><span className="text-green-600">Chair yoga, stretches</span>
       </motion.button>
     </div>
     <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
@@ -354,45 +376,29 @@ const ActivitiesScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ 
 );
 
 // HEALTH SCREEN
-const HealthScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => (
+const HealthScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => (
   <motion.div key="health" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>❤️ My Health</h1>
-      <HelpButton />
+      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
     <div className="flex-1 grid grid-cols-2 gap-6 mb-6" style={{ zIndex: 10 }}>
-      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-200"
-        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-5xl">💊</span>
-        <span className="text-xl font-bold text-gray-800">Medications</span>
-        <div className="bg-purple-100 px-4 py-2 rounded-full">
-          <span className="text-purple-700 font-semibold">Next: 2:30 PM</span>
-        </div>
+      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-5xl">💊</span><span className="text-xl font-bold text-gray-800">Medications</span>
+        <div className="bg-purple-100 px-4 py-2 rounded-full"><span className="text-purple-700 font-semibold">Next: 2:30 PM</span></div>
       </motion.button>
-      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-red-200"
-        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-5xl">📊</span>
-        <span className="text-xl font-bold text-gray-800">My Vitals</span>
-        <div className="bg-red-100 px-4 py-2 rounded-full">
-          <span className="text-red-700 font-semibold">Log reading</span>
-        </div>
+      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-red-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-5xl">📊</span><span className="text-xl font-bold text-gray-800">My Vitals</span>
+        <div className="bg-red-100 px-4 py-2 rounded-full"><span className="text-red-700 font-semibold">Log reading</span></div>
       </motion.button>
-      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200"
-        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-5xl">👨‍⚕️</span>
-        <span className="text-xl font-bold text-gray-800">GP Messages</span>
-        <div className="bg-blue-100 px-4 py-2 rounded-full">
-          <span className="text-blue-700 font-semibold">1 new message</span>
-        </div>
+      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-5xl">👨‍⚕️</span><span className="text-xl font-bold text-gray-800">GP Messages</span>
+        <div className="bg-blue-100 px-4 py-2 rounded-full"><span className="text-blue-700 font-semibold">1 new message</span></div>
       </motion.button>
-      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200"
-        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-5xl">📝</span>
-        <span className="text-xl font-bold text-gray-800">How I Feel</span>
-        <div className="bg-green-100 px-4 py-2 rounded-full">
-          <span className="text-green-700 font-semibold">Log symptoms</span>
-        </div>
+      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-5xl">📝</span><span className="text-xl font-bold text-gray-800">How I Feel</span>
+        <div className="bg-green-100 px-4 py-2 rounded-full"><span className="text-green-700 font-semibold">Log symptoms</span></div>
       </motion.button>
     </div>
     <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
@@ -400,22 +406,15 @@ const HealthScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNa
 );
 
 // MY DAY SCREEN
-const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => {
-  const eventColors: Record<string, string> = {
-    family: 'border-l-green-500 bg-green-50',
-    medical: 'border-l-red-500 bg-red-50',
-    activity: 'border-l-orange-500 bg-orange-50',
-    call: 'border-l-blue-500 bg-blue-50',
-    medication: 'border-l-purple-500 bg-purple-50',
-  };
+const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
+  const eventColors: Record<string, string> = { family: 'border-l-green-500 bg-green-50', medical: 'border-l-red-500 bg-red-50', activity: 'border-l-orange-500 bg-orange-50', call: 'border-l-blue-500 bg-blue-50', medication: 'border-l-purple-500 bg-purple-50' };
   const eventIcons: Record<string, string> = { family: '👨‍👩‍👧', medical: '🏥', activity: '🎯', call: '📞', medication: '💊' };
-  
   return (
     <motion.div key="myday" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
       className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>📅 My Day</h1>
-        <HelpButton />
+        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
       </div>
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-4 mb-6" style={{ zIndex: 10 }}>
         <h2 className="text-2xl font-bold text-amber-800 mb-1">Today - Sunday, 2nd February</h2>
@@ -423,15 +422,10 @@ const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNav
       </div>
       <div className="flex-1 space-y-4 mb-6 overflow-y-auto" style={{ zIndex: 10 }}>
         {mockEvents.map((event) => (
-          <motion.div key={event.id}
-            className={`bg-white/90 backdrop-blur-md rounded-2xl p-5 shadow-lg border-l-4 ${eventColors[event.type]}`}
-            whileHover={{ scale: 1.01, x: 4 }}>
+          <motion.div key={event.id} className={`bg-white/90 backdrop-blur-md rounded-2xl p-5 shadow-lg border-l-4 ${eventColors[event.type]}`} whileHover={{ scale: 1.01, x: 4 }}>
             <div className="flex items-center gap-4">
               <div className="text-4xl">{eventIcons[event.type]}</div>
-              <div className="flex-1">
-                <div className="text-xl font-bold text-gray-800">{event.title}</div>
-                <div className="text-gray-500">at {event.time}</div>
-              </div>
+              <div className="flex-1"><div className="text-xl font-bold text-gray-800">{event.title}</div><div className="text-gray-500">at {event.time}</div></div>
               <div className="text-2xl font-bold text-gray-400">{event.time}</div>
             </div>
           </motion.div>
@@ -443,20 +437,16 @@ const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNav
 };
 
 // BROWSE WEB SCREEN
-const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => (
+const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => (
   <motion.div key="browse" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🌐 Browse Web</h1>
-      <HelpButton />
+      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
     <div className="bg-white/90 backdrop-blur-md rounded-2xl p-4 mb-6 flex gap-4" style={{ zIndex: 10 }}>
-      <input type="text" placeholder="Search Google or type a website..." 
-        className="flex-1 px-6 py-4 rounded-xl border-2 border-gray-200 text-lg focus:outline-none focus:border-teal-400" />
-      <motion.button className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-bold text-lg shadow-lg"
-        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
-        🔍 Search
-      </motion.button>
+      <input type="text" placeholder="Search Google or type a website..." className="flex-1 px-6 py-4 rounded-xl border-2 border-gray-200 text-lg focus:outline-none focus:border-teal-400" />
+      <motion.button className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-bold text-lg shadow-lg" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>🔍 Search</motion.button>
     </div>
     <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
       {[
@@ -467,11 +457,9 @@ const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNa
         { icon: '🛒', name: 'Amazon', color: 'from-orange-100 to-yellow-200 border-orange-300' },
         { icon: '⭐', name: 'Favourites', color: 'from-amber-100 to-amber-200 border-amber-300' },
       ].map((site) => (
-        <motion.button key={site.name}
-          className={`bg-gradient-to-br ${site.color} rounded-3xl p-6 flex flex-col items-center gap-3 shadow-lg border-2`}
+        <motion.button key={site.name} className={`bg-gradient-to-br ${site.color} rounded-3xl p-6 flex flex-col items-center gap-3 shadow-lg border-2`}
           whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-          <span className="text-5xl">{site.icon}</span>
-          <span className="text-xl font-bold text-gray-700">{site.name}</span>
+          <span className="text-5xl">{site.icon}</span><span className="text-xl font-bold text-gray-700">{site.name}</span>
         </motion.button>
       ))}
     </div>
@@ -479,10 +467,8 @@ const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNa
   </motion.div>
 );
 
-// ============ MAIN APP ============
-
 // VOICE SCREEN
-const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => {
+const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
   const [isListening, setIsListening] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [status, setStatus] = useState("Tap the microphone to talk to Warda");
@@ -498,11 +484,7 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNav
     setIsListening(true);
     setStatus("Listening...");
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setStatus("Speech not supported. Try Chrome.");
-      setIsListening(false);
-      return;
-    }
+    if (!SpeechRecognition) { setStatus("Speech not supported. Try Chrome."); setIsListening(false); return; }
     const recognition = new SpeechRecognition();
     recognition.lang = "en-GB";
     recognition.continuous = false;
@@ -512,16 +494,12 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNav
       setStatus("Warda is responding...");
       setIsListening(false);
       try {
-        const res = await fetch("http://13.40.187.182:3001/api/voice/conversation", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch("https://api.meetwarda.com/api/voice/conversation", {
+          method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId: "margaret123", message: text, context: { residentName: "Margaret" } })
         });
         const data = await res.json();
-        if (data.success && data.audio) {
-          setStatus("Warda is speaking...");
-          playAudio(data.audio);
-        }
+        if (data.success && data.audio) { setStatus("Warda is speaking..."); playAudio(data.audio); }
       } catch (err) { setStatus("Connection error. Tap to try again."); }
     };
     recognition.onerror = () => { setStatus("Could not hear you. Tap again."); setIsListening(false); };
@@ -531,7 +509,7 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNav
     <motion.div key="voice" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: "Georgia, serif" }}>🎤 Talk to Warda</h1>
-        <HelpButton />
+        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
       </div>
       <div className="flex-1 flex flex-col items-center justify-center gap-8" style={{ zIndex: 10 }}>
         <div className="bg-white/80 backdrop-blur-md rounded-3xl p-8 text-center shadow-xl border-2 border-white/50">
@@ -540,7 +518,7 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNav
         </div>
         <motion.button onClick={handleMicClick} disabled={isListening || isPlaying}
           className="w-40 h-40 rounded-full flex items-center justify-center text-7xl shadow-2xl"
-          style={{ background: isListening ? "linear-gradient(135deg, #F87171 0%, #EF4444 100%)" : isPlaying ? "linear-gradient(135deg, #A78BFA 0%, #8B5CF6 100%)" : "linear-gradient(135deg, #5EEAD4 0%, #14B8A6 100%)" }}
+          style={{ background: isListening ? "linear-gradient(135deg, #F87171, #EF4444)" : isPlaying ? "linear-gradient(135deg, #A78BFA, #8B5CF6)" : "linear-gradient(135deg, #5EEAD4, #14B8A6)" }}
           whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
           {isListening ? "👂" : isPlaying ? "🔊" : "🎤"}
         </motion.button>
@@ -550,35 +528,27 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNav
     </motion.div>
   );
 };
+
 // FAITH SCREEN
-const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => (
+const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => (
   <motion.div key="faith" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🙏 My Faith</h1>
-      <HelpButton />
+      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
     <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-4 mb-6" style={{ zIndex: 10 }}>
       <p className="text-lg text-amber-800 text-center">Find comfort, peace, and inspiration</p>
     </div>
     <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
-      <motion.button className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200"
-        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">✝️</span>
-        <span className="text-2xl font-bold text-blue-800">Christian</span>
-        <span className="text-blue-600 text-center">Bible, Hymns, Prayers</span>
+      <motion.button className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200" whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">✝️</span><span className="text-2xl font-bold text-blue-800">Christian</span><span className="text-blue-600 text-center">Bible, Hymns, Prayers</span>
       </motion.button>
-      <motion.button className="bg-gradient-to-br from-green-50 to-green-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200"
-        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">☪️</span>
-        <span className="text-2xl font-bold text-green-800">Muslim</span>
-        <span className="text-green-600 text-center">Quran, Duas, Nasheeds</span>
+      <motion.button className="bg-gradient-to-br from-green-50 to-green-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200" whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">☪️</span><span className="text-2xl font-bold text-green-800">Muslim</span><span className="text-green-600 text-center">Quran, Duas, Nasheeds</span>
       </motion.button>
-      <motion.button className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-amber-200"
-        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">✡️</span>
-        <span className="text-2xl font-bold text-amber-800">Jewish</span>
-        <span className="text-amber-600 text-center">Torah, Psalms, Prayers</span>
+      <motion.button className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-amber-200" whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">✡️</span><span className="text-2xl font-bold text-amber-800">Jewish</span><span className="text-amber-600 text-center">Torah, Psalms, Prayers</span>
       </motion.button>
     </div>
     <div className="bg-white/80 backdrop-blur-md rounded-2xl p-6 mb-6 border-2 border-white/50 shadow-lg" style={{ zIndex: 10 }}>
@@ -589,10 +559,24 @@ const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNav
     <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
   </motion.div>
 );
+
+// ============ MAIN APP ============
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // 🔌 SOCKET CONNECTION - Real-time layer
+  const {
+    isConnected,
+    incomingMessage,
+    helpConfirmed,
+    sendHelp,
+    sendMessageToFamily,
+    updateWardaStatus,
+    dismissMessage,
+    messageQueue,
+  } = useSocket(RESIDENT_ID, RESIDENT_NAME, CARE_HOME_ID);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -609,6 +593,18 @@ function App() {
   const handleSelectContact = (contact: Contact) => {
     setSelectedContact(contact);
     setCurrentScreen('contact');
+  };
+
+  // Handle reply from message overlay
+  const handleReplyFromOverlay = (senderId: string, senderName: string) => {
+    dismissMessage();
+    // Navigate to talk screen where resident can tell Warda to reply
+    setCurrentScreen('talk');
+  };
+
+  // Help button handler
+  const handleHelp = () => {
+    sendHelp();
   };
 
   // Generate bubbles
@@ -628,21 +624,35 @@ function App() {
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #FDF8F3 0%, #F9F5EF 30%, #F4EFE8 60%, #EBE6DE 100%)' }}>
+      {/* Connection indicator */}
+      <ConnectionDot connected={isConnected} />
+
+      {/* Background effects */}
       {lightRays.map((ray, i) => <LightRay key={i} {...ray} />)}
       {mainBubbles.map((b) => <AquariumBubble key={b.id} {...b} />)}
       {tinyBubbles.map((b) => <TinyBubble key={b.id} {...b} />)}
 
+      {/* Message overlay - shows when family/staff sends a message */}
+      <MessageOverlay
+        message={incomingMessage}
+        residentName={RESIDENT_NAME}
+        onDismiss={dismissMessage}
+        onReply={handleReplyFromOverlay}
+        queueCount={messageQueue.length}
+      />
+
+      {/* Screens */}
       <AnimatePresence mode="wait">
-        {currentScreen === 'home' && <HomeScreen onNavigate={handleNavigate} time={timeString} />}
-        {currentScreen === 'talk' && <TalkScreen onNavigate={handleNavigate} />}
-        {currentScreen === 'voice' && <VoiceScreen onNavigate={handleNavigate} />}
-        {currentScreen === 'family' && <FamilyScreen onNavigate={handleNavigate} onSelectContact={handleSelectContact} />}
-        {currentScreen === 'contact' && selectedContact && <ContactScreen contact={selectedContact} onNavigate={handleNavigate} />}
-        {currentScreen === 'activities' && <ActivitiesScreen onNavigate={handleNavigate} />}
-        {currentScreen === 'health' && <HealthScreen onNavigate={handleNavigate} />}
-        {currentScreen === 'faith' && <FaithScreen onNavigate={handleNavigate} />}
-        {currentScreen === 'myday' && <MyDayScreen onNavigate={handleNavigate} />}
-        {currentScreen === 'browse' && <BrowseScreen onNavigate={handleNavigate} />}
+        {currentScreen === 'home' && <HomeScreen onNavigate={handleNavigate} time={timeString} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'talk' && <TalkScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'voice' && <VoiceScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'family' && <FamilyScreen onNavigate={handleNavigate} onSelectContact={handleSelectContact} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'contact' && selectedContact && <ContactScreen contact={selectedContact} onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'activities' && <ActivitiesScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'health' && <HealthScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'faith' && <FaithScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'myday' && <MyDayScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'browse' && <BrowseScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
       </AnimatePresence>
     </div>
   );
