@@ -33,13 +33,37 @@ const MessageOverlay: React.FC<MessageOverlayProps> = ({
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Speak text using the API (Polly) with fallback to browser TTS
+  // Strip emojis so Polly doesn't say "two hearts emoji" etc.
+  const stripEmojis = (text: string): string => {
+    return text
+      .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+      .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc symbols & pictographs
+      .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport & map
+      .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Flags
+      .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc symbols
+      .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
+      .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Variation selectors
+      .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental symbols
+      .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '') // Chess symbols
+      .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols extended
+      .replace(/[\u{200D}]/gu, '')             // Zero-width joiner
+      .replace(/[\u{20E3}]/gu, '')             // Combining enclosing keycap
+      .replace(/[\u{E0020}-\u{E007F}]/gu, '') // Tags
+      .replace(/\s{2,}/g, ' ')                // Collapse multiple spaces
+      .trim();
+  };
+
   const speak = useCallback(async (text: string): Promise<void> => {
+    // Clean emojis before speaking
+    const cleanText = stripEmojis(text);
+    if (!cleanText) return; // Nothing to say after stripping
+
     // Try Polly first
     try {
       const res = await fetch(API_URL + '/api/voice/speak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text: cleanText }),
       });
       const data = await res.json();
       if (data.success && data.audio) {
@@ -57,7 +81,7 @@ const MessageOverlay: React.FC<MessageOverlayProps> = ({
     // Fallback: browser speech synthesis
     return new Promise((resolve) => {
       if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
+        const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = 'en-GB';
         utterance.rate = 0.85;
         utterance.pitch = 1.1;
