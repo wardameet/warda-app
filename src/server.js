@@ -35,6 +35,10 @@ const healthLogRoutes = require('./routes/healthLogs');
 const auditRoutes = require('./routes/audit');
 const activitiesRoutes = require('./routes/activities');
 const calendarRoutes = require('./routes/calendar');
+const billingRoutes = require('./routes/billing');
+const setupGuideRoutes = require('./routes/setupGuide');
+const complianceRoutes = require('./routes/compliance');
+const b2cSignupRoutes = require('./routes/b2cSignup');
 const { startMedicationReminders } = require('./services/medicationReminder');
 const { startProactiveScheduler } = require('./services/proactive');
 
@@ -95,6 +99,10 @@ app.use('/api/health-logs', healthLogRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/activities', activitiesRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/setup', setupGuideRoutes);
+app.use('/api/compliance', complianceRoutes);
+app.use('/api/b2c', b2cSignupRoutes);
 
 // Admin Portal API
 app.use('/api/admin/auth', adminAuthRoutes);

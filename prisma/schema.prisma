@@ -470,3 +470,41 @@ model CalendarEvent {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId, date])
 }
+
+model Subscription {
+  id                    String    @id @default(uuid())
+  careHomeId            String?
+  email                 String
+  name                  String
+  planId                String
+  planName              String
+  amount                Int
+  currency              String    @default("gbp")
+  interval              String    @default("month")
+  residentCount         Int       @default(1)
+  status                String    @default("active")
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  invoices              Invoice[]
+  @@index([status])
+  @@index([careHomeId])
+}
+
+model Invoice {
+  id              String       @id @default(uuid())
+  subscriptionId  String
+  amount          Int
+  currency        String       @default("gbp")
+  status          String       @default("pending")
+  stripeInvoiceId String?
+  paidAt          DateTime?
+  dueDate         DateTime?
+  createdAt       DateTime     @default(now())
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  @@index([subscriptionId])
+}
