@@ -27,6 +27,10 @@ const presenceRoutes = require('./routes/presence');
 const photoRoutes = require('./routes/photos');
 const analyticsRoutes = require('./routes/analytics');
 const pushRoutes = require('./routes/push');
+const tabletRoutes = require('./routes/tablets');
+const videoRoutes = require('./routes/video');
+const browseRoutes = require('./routes/browse');
+const { startProactiveScheduler } = require('./services/proactive');
 
 // Admin Portal Routes
 const adminAuthRoutes = require('./routes/admin/auth');
@@ -77,6 +81,9 @@ app.use('/api/presence', presenceRoutes);
 app.use('/api/photos', photoRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/tablets', tabletRoutes);
+app.use('/api/video', videoRoutes);
+app.use('/api/browse', browseRoutes);
 
 // Admin Portal API
 app.use('/api/admin/auth', adminAuthRoutes);
@@ -123,6 +130,7 @@ async function startServer() {
     console.log('✅ Socket.io initialized');
 
     const PORT = process.env.PORT || 3001;
+    startProactiveScheduler(io);
     httpServer.listen(PORT, () => {
       console.log(`
 ╔═══════════════════════════════════════════╗

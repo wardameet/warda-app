@@ -65,3 +65,97 @@ router.get('/voices', (req, res) => {
 });
 
 module.exports = router;
+
+// ─── Voice Navigation Commands ──────────────────────────────
+const NAVIGATION_COMMANDS = [
+  // Home
+  { patterns: ['take me home', 'go home', 'go back home', 'home screen', 'main screen', 'back to start'], screen: 'home', response: "Taking you home, dear." },
+  // Family
+  { patterns: ['show my family', 'family screen', 'see my family', 'who is my family', 'open family', 'my family'], screen: 'family', response: "Here's your family, love." },
+  // Chat
+  { patterns: ['chat with warda', 'talk to warda', 'start chatting', 'type a message', 'text warda', 'open chat'], screen: 'talk', response: "Let's have a wee chat." },
+  // Voice
+  { patterns: ['voice mode', 'speak to warda', 'talk mode', 'use my voice'], screen: 'voice', response: "I'm listening, dear." },
+  // Activities
+  { patterns: ['show activities', 'what can i do', 'activities', 'games', 'things to do', 'open activities'], screen: 'activities', response: "Let's find something fun to do!" },
+  // Health
+  { patterns: ['my health', 'health screen', 'how am i doing', 'health check', 'show health', 'open health'], screen: 'health', response: "Let's check how you're doing." },
+  // My Day
+  { patterns: ['my day', 'what is today', 'today schedule', 'daily schedule', 'show my day', "what's on today"], screen: 'myday', response: "Here's your day, love." },
+  // Faith
+  { patterns: ['my faith', 'prayer', 'pray', 'faith screen', 'spiritual', 'open faith', 'bible', 'quran'], screen: 'faith', response: "A moment of peace for you." },
+  // Settings
+  { patterns: ['settings', 'change settings', 'volume', 'brightness', 'make it louder', 'make it bigger', 'text size'], screen: 'settings', response: "Here are your settings, dear." },
+  // Browse
+  { patterns: ['browse web', 'internet', 'open browser', 'search online', 'go online', 'browse'], screen: 'browse', response: "Let's have a look online." },
+  // Help
+  { patterns: ['help me', 'i need help', 'call for help', 'emergency', 'help please', 'get help'], screen: 'help', response: "I'm getting help for you right now, dear. Don't worry." },
+  // Call family
+  { patterns: ['video call my family', 'start a video call', 'open video call'], screen: 'videocall', response: "I'll connect you now, dear." },
+];
+
+function detectNavCommand(message) {
+  const lower = message.toLowerCase().trim();
+  for (const cmd of NAVIGATION_COMMANDS) {
+    for (const pattern of cmd.patterns) {
+      if (lower.includes(pattern)) {
+        return { screen: cmd.screen, response: cmd.response, matched: pattern };
+      }
+    }
+  }
+  return null;
+}
+
+// Voice command endpoint - checks for navigation first, falls back to conversation
+router.post('/command', async (req, res) => {
+  try {
+    const { userId, message, context } = req.body;
+    if (!message) return res.status(400).json({ success: false, error: 'Message required' });
+
+    // 1. Check for navigation commands
+    const navCmd = detectNavCommand(message);
+    if (navCmd) {
+      const audio = await textToSpeech(navCmd.response, VOICES.female);
+      return res.json({
+        success: true,
+        type: 'navigation',
+        screen: navCmd.screen,
+        text: navCmd.response,
+        audio: audio.audio,
+        contentType: audio.contentType
+      });
+    }
+
+    // 2. Check for "call [name]" pattern - match family member
+    const callMatch = message.toLowerCase().match(/(?:call|ring|phone|video call)\s+(.+)/i);
+    if (callMatch) {
+      const name = callMatch[1].trim();
+      const audio = await textToSpeech(`I'll try to connect you with ${name} now.`, VOICES.female);
+      return res.json({
+        success: true,
+        type: 'call',
+        calleeName: name,
+        text: `I'll try to connect you with ${name} now.`,
+        audio: audio.audio,
+        contentType: audio.contentType
+      });
+    }
+
+    // 3. Fall back to normal Warda conversation
+    const wardaResponse = await getWardaResponse(message, [], context || {});
+    const audio = await textToSpeech(wardaResponse.text, VOICES.female);
+    res.json({
+      success: true,
+      type: 'conversation',
+      text: wardaResponse.text,
+      audio: audio.audio,
+      contentType: audio.contentType,
+      mood: wardaResponse.mood,
+      intent: wardaResponse.intent
+    });
+  } catch (error) {
+    console.error('Voice command error:', error);
+    res.status(500).json({ success: false, error: 'Failed to process command' });
+  }
+});
+

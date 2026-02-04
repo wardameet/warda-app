@@ -643,7 +643,21 @@ function initializeSocket(io) {
     // ----------------------------------------------------------
     // DISCONNECT
     // ----------------------------------------------------------
-    socket.on('disconnect', () => {
+    socket.on('join:tablet', (data) => {
+        if (data?.residentId) {
+          socket.join(`tablet:${data.residentId}`);
+          console.log(`Tablet joined room tablet:${data.residentId}`);
+        }
+      });
+
+      socket.on('join:family', (data) => {
+        if (data?.residentId) {
+          socket.join(`family:${data.residentId}`);
+          console.log(`Family joined room family:${data.residentId}`);
+        }
+      });
+
+      socket.on('disconnect', () => {
       const userData = removeConnection(socket.id);
       
       if (userData) {

@@ -1,7 +1,7 @@
 import { useSocket } from './useSocket';
 import MessageOverlay from './MessageOverlay';
 import { useWarda } from './useWarda';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ============ CONFIG ============
@@ -11,7 +11,7 @@ let RESIDENT_NAME = "";
 let CARE_HOME_ID = "";
 
 // ============ TYPES ============
-type Screen = 'pin' | 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith' | 'settings';
+type Screen = 'pin' | 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith' | 'settings' | 'videocall';
 
 interface Contact {
   id: string;
@@ -176,6 +176,8 @@ const WardaFace: React.FC<{ onClick: () => void; hasNotification: boolean }> = (
 // ============ SCREEN COMPONENTS ============
 
 // ─── PIN Login Screen ───────────────────────────────────
+import { io, Socket } from 'socket.io-client';
+
 const API_BASE = 'https://api.meetwarda.com/api';
 const CARE_HOME_ID_DEFAULT = '8d02b20b-8fb2-4e78-a77f-f3ba2f37f833';
 
@@ -540,36 +542,105 @@ const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
 };
 
 // BROWSE WEB SCREEN
-const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => (
-  <motion.div key="browse" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
-    className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
-    <div className="flex justify-between items-center mb-6">
-      <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🌐 Browse Web</h1>
-      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
-    </div>
-    <div className="bg-white/90 backdrop-blur-md rounded-2xl p-4 mb-6 flex gap-4" style={{ zIndex: 10 }}>
-      <input type="text" placeholder="Search Google or type a website..." className="flex-1 px-6 py-4 rounded-xl border-2 border-gray-200 text-lg focus:outline-none focus:border-teal-400" />
-      <motion.button className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-bold text-lg shadow-lg" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>🔍 Search</motion.button>
-    </div>
-    <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
-      {[
-        { icon: '📺', name: 'BBC News', color: 'from-red-100 to-red-200 border-red-300' },
-        { icon: '🌤️', name: 'Weather', color: 'from-blue-100 to-blue-200 border-blue-300' },
-        { icon: '📰', name: 'Daily Mail', color: 'from-gray-100 to-gray-200 border-gray-300' },
-        { icon: '🎬', name: 'YouTube', color: 'from-red-100 to-pink-200 border-red-300' },
-        { icon: '🛒', name: 'Amazon', color: 'from-orange-100 to-yellow-200 border-orange-300' },
-        { icon: '⭐', name: 'Favourites', color: 'from-amber-100 to-amber-200 border-amber-300' },
-      ].map((site) => (
-        <motion.button key={site.name} className={`bg-gradient-to-br ${site.color} rounded-3xl p-6 flex flex-col items-center gap-3 shadow-lg border-2`}
-          whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-          <span className="text-5xl">{site.icon}</span><span className="text-xl font-bold text-gray-700">{site.name}</span>
-        </motion.button>
-      ))}
-    </div>
-    <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
-  </motion.div>
-);
+const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentUrl, setCurrentUrl] = useState('');
+  const [blocked, setBlocked] = useState('');
+  const [loading, setLoading] = useState(false);
 
+  const shortcuts = [
+    { icon: '📺', name: 'BBC News', url: 'https://www.bbc.co.uk/news', bg: '#fef2f2' },
+    { icon: '🌤️', name: 'Weather', url: 'https://www.bbc.co.uk/weather', bg: '#eff6ff' },
+    { icon: '📰', name: 'Daily Mail', url: 'https://www.dailymail.co.uk', bg: '#f9fafb' },
+    { icon: '🎬', name: 'YouTube', url: 'https://www.youtube.com', bg: '#fef2f2' },
+    { icon: '🛒', name: 'Amazon', url: 'https://www.amazon.co.uk', bg: '#fffbeb' },
+    { icon: '🏥', name: 'NHS', url: 'https://www.nhs.uk', bg: '#f0fdfa' },
+    { icon: '📚', name: 'Wikipedia', url: 'https://en.wikipedia.org', bg: '#f9fafb' },
+    { icon: '🏴\u200d', name: 'Scotsman', url: 'https://www.scotsman.com', bg: '#eff6ff' },
+    { icon: '🌍', name: 'Nat Geo', url: 'https://www.nationalgeographic.com', bg: '#fefce8' },
+  ];
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setLoading(true); setBlocked('');
+    try {
+      const res = await fetch('https://api.meetwarda.com/api/browse/search', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery })
+      });
+      const data = await res.json();
+      if (data.safe) { setCurrentUrl(data.url); }
+      else { setBlocked('This search contains content that isn\u2019t suitable. Try something else, dear.'); setCurrentUrl(''); }
+    } catch (err) { setBlocked('Could not search right now.'); }
+    setLoading(false);
+  };
+
+  const handleShortcut = async (url: string) => {
+    setLoading(true); setBlocked('');
+    try {
+      const res = await fetch('https://api.meetwarda.com/api/browse/check', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (data.safe) { setCurrentUrl(url); }
+      else { setBlocked('This website isn\u2019t available right now.'); setCurrentUrl(''); }
+    } catch (err) { setCurrentUrl(url); }
+    setLoading(false);
+  };
+
+  if (currentUrl) return (
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', zIndex: 50, background: '#fff' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: '#f0fdfa', borderBottom: '2px solid #99f6e4', gap: 8 }}>
+        <button onClick={() => setCurrentUrl('')} style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>← Back</button>
+        <div style={{ flex: 1, padding: '8px 12px', background: '#fff', borderRadius: 8, fontSize: 14, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{currentUrl}</div>
+        <button onClick={() => setCurrentUrl('')} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>✕ Close</button>
+      </div>
+      <iframe src={currentUrl} style={{ flex: 1, border: 'none', width: '100%' }} title="Browse" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
+    </div>
+  );
+
+  return (
+    <div style={{ padding: 24, minHeight: '100vh', position: 'relative', zIndex: 5 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: '#0f766e', fontFamily: 'Georgia, serif' }}>🌐 Browse Web</h1>
+        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+      </div>
+
+      <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 16, padding: 16, marginBottom: 20, display: 'flex', gap: 12 }}>
+        <input
+          type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSearch()}
+          placeholder="Search Google or type a website..."
+          style={{ flex: 1, padding: '14px 20px', borderRadius: 12, border: '2px solid #e5e7eb', fontSize: 18, outline: 'none' }}
+        />
+        <button onClick={handleSearch} disabled={loading}
+          style={{ padding: '14px 24px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 18, fontWeight: 700, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+          🔍 Search
+        </button>
+      </div>
+
+      {blocked && (
+        <div style={{ background: '#fef2f2', border: '2px solid #fecaca', borderRadius: 12, padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 28 }}>🛡️</span>
+          <div style={{ color: '#991b1b', fontSize: 16 }}>{blocked}</div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {shortcuts.map(s => (
+          <button key={s.name} onClick={() => handleShortcut(s.url)}
+            style={{ background: s.bg, borderRadius: 20, padding: 20, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 10, border: '2px solid #e5e7eb', cursor: 'pointer', transition: 'transform 0.1s' }}>
+            <span style={{ fontSize: 44 }}>{s.icon}</span>
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#374151' }}>{s.name}</span>
+          </button>
+        ))}
+      </div>
+
+      <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
+    </div>
+  );
+};
 // VOICE SCREEN
 const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
   const [isListening, setIsListening] = useState(false);
@@ -597,12 +668,26 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
       setStatus("Warda is responding...");
       setIsListening(false);
       try {
-        const res = await fetch("https://api.meetwarda.com/api/voice/conversation", {
+        const res = await fetch("https://api.meetwarda.com/api/voice/command", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId: "margaret123", message: text, context: { residentName: "Margaret" } })
         });
         const data = await res.json();
-        if (data.success && data.audio) { setStatus("Warda is speaking..."); playAudio(data.audio); }
+        if (data.success) {
+            setStatus("Warda is speaking...");
+            if (data.audio) playAudio(data.audio);
+            // Handle navigation commands
+            if (data.type === 'navigation' && data.screen) {
+              setTimeout(() => {
+                if (data.screen === 'help') { onHelp(); }
+                else { onNavigate(data.screen as Screen); }
+              }, 1500);
+            }
+            // Handle call commands
+            if (data.type === 'call' && data.calleeName) {
+              setStatus("Connecting call to " + data.calleeName + "...");
+            }
+          }
       } catch (err) { setStatus("Connection error. Tap to try again."); }
     };
     recognition.onerror = () => { setStatus("Could not hear you. Tap again."); setIsListening(false); };
@@ -665,6 +750,137 @@ const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
 
 // ============ MAIN APP ============
 
+
+// ─── Video Call Screen (Chime SDK) ──────────────────────────
+const VideoCallScreen: React.FC<{
+  meeting: any; attendee: any; callerName: string;
+  onEnd: () => void; onNavigate: (s: Screen) => void;
+}> = ({ meeting, attendee, callerName, onEnd, onNavigate }) => {
+  const localVideoRef = React.useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = React.useRef<HTMLVideoElement>(null);
+  const [connected, setConnected] = React.useState(false);
+  const [muted, setMuted] = React.useState(false);
+  const [elapsed, setElapsed] = React.useState(0);
+  const meetingSessionRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    let timer: any;
+    const startCall = async () => {
+      try {
+        const ChimeSDK = await import('amazon-chime-sdk-js');
+        const logger = new ChimeSDK.ConsoleLogger('WardaCall', ChimeSDK.LogLevel.WARN);
+        const deviceController = new ChimeSDK.DefaultDeviceController(logger);
+        const config = new ChimeSDK.MeetingSessionConfiguration(meeting, attendee);
+        const session = new ChimeSDK.DefaultMeetingSession(config, logger, deviceController);
+        meetingSessionRef.current = session;
+
+        // Bind audio
+        const audioEl = document.createElement('audio');
+        audioEl.id = 'warda-call-audio';
+        document.body.appendChild(audioEl);
+        await session.audioVideo.bindAudioElement(audioEl);
+
+        // Start local video
+        const videoDevices = await session.audioVideo.listVideoInputDevices();
+        if (videoDevices.length > 0) {
+          await session.audioVideo.startVideoInput(videoDevices[0].deviceId);
+        }
+        const audioDevices = await session.audioVideo.listAudioInputDevices();
+        if (audioDevices.length > 0) {
+          await session.audioVideo.startAudioInput(audioDevices[0].deviceId);
+        }
+
+        // Observer for remote video
+        const observer: any = {
+          videoTileDidUpdate: (tileState: any) => {
+            if (tileState.localTile && localVideoRef.current) {
+              session.audioVideo.bindVideoElement(tileState.tileId, localVideoRef.current);
+            } else if (!tileState.localTile && remoteVideoRef.current) {
+              session.audioVideo.bindVideoElement(tileState.tileId, remoteVideoRef.current);
+            }
+          },
+          audioVideoDidStart: () => { setConnected(true); },
+          audioVideoDidStop: () => { handleEnd(); }
+        };
+        session.audioVideo.addObserver(observer);
+        session.audioVideo.start();
+        session.audioVideo.startLocalVideoTile();
+
+        timer = setInterval(() => setElapsed(e => e + 1), 1000);
+      } catch (err) {
+        console.error('Video call error:', err);
+      }
+    };
+    startCall();
+    return () => {
+      clearInterval(timer);
+      const el = document.getElementById('warda-call-audio');
+      if (el) el.remove();
+    };
+  }, []);
+
+  const handleEnd = async () => {
+    try {
+      if (meetingSessionRef.current) {
+        meetingSessionRef.current.audioVideo.stop();
+      }
+    } catch (e) {}
+    onEnd();
+  };
+
+  const toggleMute = () => {
+    if (!meetingSessionRef.current) return;
+    if (muted) { meetingSessionRef.current.audioVideo.realtimeUnmuteLocalAudio(); }
+    else { meetingSessionRef.current.audioVideo.realtimeMuteLocalAudio(); }
+    setMuted(!muted);
+  };
+
+  const formatTime = (s: number) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: '#1a1a2e', display: 'flex', flexDirection: 'column', zIndex: 9999 }}>
+      <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
+        {!connected && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+            <div style={{ fontSize: 64, marginBottom: 16 }}>📹</div>
+            <div style={{ fontSize: 28, fontWeight: 600 }}>Connecting to {callerName}...</div>
+          </div>
+        )}
+        <video ref={localVideoRef} autoPlay playsInline muted style={{ position: 'absolute', bottom: 100, right: 20, width: 160, height: 120, borderRadius: 12, border: '2px solid #fff', objectFit: 'cover', background: '#333' }} />
+        <div style={{ position: 'absolute', top: 20, left: 0, right: 0, textAlign: 'center' }}>
+          <div style={{ color: '#fff', fontSize: 22, fontWeight: 600 }}>{callerName}</div>
+          <div style={{ color: '#aaa', fontSize: 18 }}>{connected ? formatTime(elapsed) : 'Connecting...'}</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 32, padding: 24, background: 'rgba(0,0,0,0.8)' }}>
+        <button onClick={toggleMute} style={{ width: 72, height: 72, borderRadius: '50%', border: 'none', fontSize: 28, cursor: 'pointer', background: muted ? '#f59e0b' : '#374151', color: '#fff' }}>
+          {muted ? '🔇' : '🎤'}
+        </button>
+        <button onClick={handleEnd} style={{ width: 72, height: 72, borderRadius: '50%', border: 'none', fontSize: 28, cursor: 'pointer', background: '#ef4444', color: '#fff' }}>
+          📞
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Incoming Call Overlay ──────────────────────────────────
+const IncomingCallOverlay: React.FC<{
+  callerName: string; onAnswer: () => void; onDecline: () => void;
+}> = ({ callerName, onAnswer, onDecline }) => (
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+    <div style={{ fontSize: 80, marginBottom: 16, animation: 'pulse 1.5s infinite' }}>📹</div>
+    <div style={{ color: '#fff', fontSize: 36, fontWeight: 700, marginBottom: 8 }}>{callerName}</div>
+    <div style={{ color: '#9ca3af', fontSize: 22, marginBottom: 48 }}>is calling you...</div>
+    <div style={{ display: 'flex', gap: 48 }}>
+      <button onClick={onDecline} style={{ width: 88, height: 88, borderRadius: '50%', border: 'none', fontSize: 36, cursor: 'pointer', background: '#ef4444', color: '#fff', boxShadow: '0 0 30px rgba(239,68,68,0.5)' }}>✕</button>
+      <button onClick={onAnswer} style={{ width: 88, height: 88, borderRadius: '50%', border: 'none', fontSize: 36, cursor: 'pointer', background: '#22c55e', color: '#fff', boxShadow: '0 0 30px rgba(34,197,94,0.5)' }}>📞</button>
+    </div>
+    <style>{'@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }'}</style>
+  </div>
+);
+
 // ─── Settings Screen ──────────────────────────────────────
 const SettingsScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
   const [volume, setVolume] = useState(80);
@@ -723,6 +939,10 @@ function App() {
   CARE_HOME_ID = residentSession?.careHomeId || '';
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [incomingCall, setIncomingCall] = useState<any>(null);
+  const [activeCall, setActiveCall] = useState<any>(null);
+  const socketRef = React.useRef<any>(null);
+  const [proactiveMsg, setProactiveMsg] = useState<any>(null);
 
   // 🔌 SOCKET CONNECTION - Real-time layer
   const {
@@ -768,6 +988,34 @@ function App() {
   const handlePinLogin = (session: ResidentSession) => {
     setResidentSession(session);
     setCurrentScreen('home');
+    // Connect socket for video calls
+    import('socket.io-client').then(({ io }) => {
+      const socket = io('https://api.meetwarda.com', { transports: ['websocket', 'polling'] });
+      socketRef.current = socket;
+      socket.on('connect', () => {
+        console.log('Tablet socket connected');
+        socket.emit('join:tablet', { residentId: session.id });
+      });
+      socket.on('call:incoming', (data: any) => {
+        console.log('Incoming call:', data);
+        setIncomingCall(data);
+        setTimeout(() => setIncomingCall((prev: any) => prev?.meetingId === data.meetingId ? null : prev), 60000);
+      });
+      socket.on('proactive:message', (data: any) => {
+        console.log('Proactive message:', data);
+        setProactiveMsg(data);
+        // Auto-play audio
+        if (data.audio) {
+          const audio = new Audio("data:audio/mpeg;base64," + data.audio);
+          audio.play().catch(() => {});
+        }
+        // Auto-dismiss after 30s
+        setTimeout(() => setProactiveMsg((p: any) => p?.text === data.text ? null : p), 30000);
+      });
+      socket.on('call:ended', () => {
+        setIncomingCall(null); setActiveCall(null); setCurrentScreen('home');
+      });
+    });
     // Load family contacts from API
     fetch('https://api.meetwarda.com/api/family/contacts/' + session.id)
       .then(r => r.json())
@@ -822,7 +1070,19 @@ function App() {
         {currentScreen === 'faith' && <FaithScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'myday' && <MyDayScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'browse' && <BrowseScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'settings' && <SettingsScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {activeCall && <VideoCallScreen meeting={activeCall.meeting} attendee={activeCall.attendee} callerName={activeCall.callerName} onEnd={() => { setActiveCall(null); setCurrentScreen('home'); fetch(API_BASE.replace('/api','') + '/api/video/end', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({residentId: currentUser?.id}) }); }} onNavigate={setCurrentScreen} />}
+      {proactiveMsg && !activeCall && !incomingCall && (
+        <div style={{ position: 'fixed', bottom: 20, left: 20, right: 20, background: 'linear-gradient(135deg, #0d9488, #0891b2)', borderRadius: 16, padding: '20px 24px', color: '#fff', zIndex: 8000, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }} onClick={() => { setProactiveMsg(null); setCurrentScreen('voice'); }}>
+          <div style={{ fontSize: 40 }}>🌹</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>Warda says...</div>
+            <div style={{ fontSize: 16, opacity: 0.95 }}>{proactiveMsg.text}</div>
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); setProactiveMsg(null); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: 36, height: 36, color: '#fff', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
+      {incomingCall && !activeCall && <IncomingCallOverlay callerName={incomingCall.callerName} onAnswer={() => { setActiveCall(incomingCall); setIncomingCall(null); }} onDecline={() => { setIncomingCall(null); fetch(API_BASE.replace('/api','') + '/api/video/end', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({residentId: currentUser?.id}) }); }} />}
+      {currentScreen === 'settings' && <SettingsScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
       </AnimatePresence>
     </div>
   );
