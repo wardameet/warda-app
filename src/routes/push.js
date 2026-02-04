@@ -73,3 +73,55 @@ router.post('/test', async (req, res) => {
 });
 
 module.exports = router;
+
+// ─── Family Management Endpoints (Admin) ─────────────────
+// GET /api/push/families/:careHomeId - All family contacts for a care home
+router.get('/families/:careHomeId', async (req, res) => {
+  try {
+    const { careHomeId } = req.params;
+    const families = await prisma.familyContact.findMany({
+      where: { user: { careHomeId } },
+      include: { user: { select: { firstName: true, lastName: true, preferredName: true, roomNumber: true, id: true } } },
+      orderBy: { name: 'asc' }
+    });
+    const summary = {
+      total: families.length,
+      registered: families.filter(f => f.cognitoSub).length,
+      pending: families.filter(f => f.inviteStatus === 'PENDING').length,
+      primary: families.filter(f => f.isPrimary).length,
+    };
+    res.json({ success: true, families, summary });
+  } catch (err) {
+    console.error('List families error:', err);
+    res.status(500).json({ error: 'Failed to load families' });
+  }
+});
+
+// PUT /api/push/families/:id - Update family contact
+router.put('/families/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, relationship, email, phone, isPrimary, accessLevel } = req.body;
+    const updated = await prisma.familyContact.update({
+      where: { id },
+      data: { name, relationship, email, phone, isPrimary, accessLevel }
+    });
+    res.json({ success: true, family: updated });
+  } catch (err) {
+    console.error('Update family error:', err);
+    res.status(500).json({ error: 'Failed to update' });
+  }
+});
+
+// POST /api/push/families/:id/reinvite - Resend invitation
+router.post('/families/:id/reinvite', async (req, res) => {
+  try {
+    const fc = await prisma.familyContact.findUnique({ where: { id: req.params.id }, include: { user: true } });
+    if (!fc) return res.status(404).json({ error: 'Not found' });
+    await prisma.familyContact.update({ where: { id: fc.id }, data: { inviteStatus: 'PENDING' } });
+    res.json({ success: true, message: `Invitation refreshed for ${fc.name}` });
+  } catch (err) {
+    console.error('Reinvite error:', err);
+    res.status(500).json({ error: 'Failed' });
+  }
+});
