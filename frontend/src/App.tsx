@@ -943,6 +943,7 @@ function App() {
   const [activeCall, setActiveCall] = useState<any>(null);
   const socketRef = React.useRef<any>(null);
   const [proactiveMsg, setProactiveMsg] = useState<any>(null);
+  const [medReminder, setMedReminder] = useState<any>(null);
 
   // 🔌 SOCKET CONNECTION - Real-time layer
   const {
@@ -1000,6 +1001,14 @@ function App() {
         console.log('Incoming call:', data);
         setIncomingCall(data);
         setTimeout(() => setIncomingCall((prev: any) => prev?.meetingId === data.meetingId ? null : prev), 60000);
+      });
+      socket.on('medication:reminder', (data: any) => {
+        console.log('Medication reminder:', data);
+        setMedReminder(data);
+        if (data.audio) {
+          const audio = new Audio("data:audio/mpeg;base64," + data.audio);
+          audio.play().catch(() => {});
+        }
       });
       socket.on('proactive:message', (data: any) => {
         console.log('Proactive message:', data);
@@ -1071,6 +1080,27 @@ function App() {
         {currentScreen === 'myday' && <MyDayScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'browse' && <BrowseScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {activeCall && <VideoCallScreen meeting={activeCall.meeting} attendee={activeCall.attendee} callerName={activeCall.callerName} onEnd={() => { setActiveCall(null); setCurrentScreen('home'); fetch(API_BASE.replace('/api','') + '/api/video/end', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({residentId: currentUser?.id}) }); }} onNavigate={setCurrentScreen} />}
+      {medReminder && !activeCall && !incomingCall && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 8500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 24, padding: 32, maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,0.3)' }}>
+            <div style={{ fontSize: 60, marginBottom: 12 }}>💊</div>
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: '#0f766e', marginBottom: 8 }}>Medication Time</h2>
+            <p style={{ fontSize: 20, color: '#374151', marginBottom: 4 }}>{medReminder.name}</p>
+            {medReminder.dosage && <p style={{ fontSize: 16, color: '#6b7280' }}>{medReminder.dosage}</p>}
+            <p style={{ fontSize: 14, color: '#9ca3af', marginTop: 8 }}>{medReminder.timeSlot}</p>
+            <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'center' }}>
+              <button onClick={async () => {
+                try { await fetch('https://api.meetwarda.com/api/medications/' + medReminder.medicationId + '/taken', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recordedBy: 'tablet' }) }); } catch {}
+                setMedReminder(null);
+              }} style={{ padding: '14px 28px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 12, fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>✓ Taken</button>
+              <button onClick={async () => {
+                try { await fetch('https://api.meetwarda.com/api/medications/' + medReminder.medicationId + '/skipped', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recordedBy: 'tablet', reason: 'Declined' }) }); } catch {}
+                setMedReminder(null);
+              }} style={{ padding: '14px 28px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 12, fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>Skip</button>
+            </div>
+          </div>
+        </div>
+      )}
       {proactiveMsg && !activeCall && !incomingCall && (
         <div style={{ position: 'fixed', bottom: 20, left: 20, right: 20, background: 'linear-gradient(135deg, #0d9488, #0891b2)', borderRadius: 16, padding: '20px 24px', color: '#fff', zIndex: 8000, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }} onClick={() => { setProactiveMsg(null); setCurrentScreen('voice'); }}>
           <div style={{ fontSize: 40 }}>🌹</div>

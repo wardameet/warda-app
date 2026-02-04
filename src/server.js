@@ -30,6 +30,10 @@ const pushRoutes = require('./routes/push');
 const tabletRoutes = require('./routes/tablets');
 const videoRoutes = require('./routes/video');
 const browseRoutes = require('./routes/browse');
+const medicationsRoutes = require('./routes/medications');
+const healthLogRoutes = require('./routes/healthLogs');
+const auditRoutes = require('./routes/audit');
+const { startMedicationReminders } = require('./services/medicationReminder');
 const { startProactiveScheduler } = require('./services/proactive');
 
 // Admin Portal Routes
@@ -84,6 +88,9 @@ app.use('/api/push', pushRoutes);
 app.use('/api/tablets', tabletRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/browse', browseRoutes);
+app.use('/api/medications', medicationsRoutes);
+app.use('/api/health-logs', healthLogRoutes);
+app.use('/api/audit', auditRoutes);
 
 // Admin Portal API
 app.use('/api/admin/auth', adminAuthRoutes);
@@ -131,6 +138,7 @@ async function startServer() {
 
     const PORT = process.env.PORT || 3001;
     startProactiveScheduler(io);
+    startMedicationReminders(io);
     httpServer.listen(PORT, () => {
       console.log(`
 ╔═══════════════════════════════════════════╗
