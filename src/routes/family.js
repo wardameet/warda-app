@@ -357,3 +357,47 @@ router.get('/me', familyAuth, async function(req, res) {
 });
 
 module.exports = router;
+
+// Get family contacts for a resident (used by tablet)
+router.get('/contacts/:residentId', async function(req, res) {
+  try {
+    var contacts = await prisma.familyContact.findMany({
+      where: { userId: req.params.residentId },
+      select: {
+        id: true,
+        name: true,
+        relationship: true,
+        phone: true,
+        email: true,
+        photoUrl: true,
+        isPrimary: true
+      }
+    });
+    
+    // Map to tablet-friendly format
+    var mapped = contacts.map(function(c) {
+      var firstName = c.name.split(' ')[0];
+      var avatarMap = {
+        'Daughter': '👩', 'Son': '👨', 'Granddaughter': '👧',
+        'Grandson': '👦', 'Wife': '👩', 'Husband': '👨',
+        'Sister': '👩', 'Brother': '👴', 'Friend': '🧑',
+        'Niece': '👧', 'Nephew': '👦'
+      };
+      return {
+        id: c.id,
+        name: firstName,
+        fullName: c.name,
+        relation: c.relationship,
+        avatar: avatarMap[c.relationship] || '🧑',
+        online: false,
+        unreadCount: 0,
+        lastMessage: ''
+      };
+    });
+    
+    res.json({ success: true, contacts: mapped });
+  } catch (err) {
+    console.error('Get family contacts error:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch contacts' });
+  }
+});

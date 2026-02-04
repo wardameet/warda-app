@@ -5,6 +5,8 @@
 
 const express = require('express');
 const router = express.Router();
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 const { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand } = require('@aws-sdk/client-cognito-identity-provider');
 
 const cognitoClient = new CognitoIdentityProviderClient({
@@ -106,25 +108,65 @@ router.post('/signin', async (req, res) => {
 });
 
 // PIN login for elderly users (simplified auth)
+// PIN login for elderly users (simplified auth)
 router.post('/pin-login', async (req, res) => {
   try {
-    const { visitorId, pin } = req.body;
+    const { pin, careHomeId } = req.body;
     
-    // TODO: Implement PIN-based auth for elderly users
-    // This will lookup the resident by visitor ID and verify PIN
+    if (!pin || !careHomeId) {
+      return res.status(400).json({
+        success: false,
+        error: 'PIN and care home ID are required'
+      });
+    }
+    
+    const resident = await prisma.user.findFirst({
+      where: {
+        pin: pin,
+        careHomeId: careHomeId
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        preferredName: true,
+        roomNumber: true,
+        photoUrl: true,
+        careHomeId: true,
+        careHome: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+    
+    if (!resident) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid PIN'
+      });
+    }
     
     res.json({
       success: true,
-      message: 'PIN login - to be implemented',
-      user: {
-        id: visitorId,
-        type: 'resident'
+      resident: {
+        id: resident.id,
+        firstName: resident.firstName,
+        lastName: resident.lastName,
+        preferredName: resident.preferredName || resident.firstName,
+        roomNumber: resident.roomNumber,
+        photoUrl: resident.photoUrl,
+        careHomeId: resident.careHomeId,
+        careHomeName: resident.careHome?.name || 'Care Home'
       }
     });
   } catch (error) {
-    res.status(401).json({
+    console.error('PIN login error:', error);
+    res.status(500).json({
       success: false,
-      error: 'Invalid PIN'
+      error: 'Login failed'
     });
   }
 });

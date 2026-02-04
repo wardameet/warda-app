@@ -1,7 +1,7 @@
 /**
  * Conversation Routes
  * Handles AI conversation with Warda using Claude API
- * NOW LOADS RESIDENT PROFILE FOR PERSONALISATION
+ * WITH RESIDENT PROFILE PERSONALISATION + FAMILY MESSAGE DETECTION
  */
 const express = require('express');
 const router = express.Router();
@@ -10,6 +10,25 @@ const { getWardaResponse, getResidentProfile, buildPersonalisedPrompt } = requir
 const { saveConversation, getConversationHistory } = require('../services/dynamodb');
 
 const prisma = new PrismaClient();
+
+// ─── Family message intent detection ───
+function detectFamilyMessageIntent(message) {
+  const lower = message.toLowerCase();
+  const patterns = [
+    /(?:tell|say to|message|text|send|let)\s+(\w+)\s+(?:that\s+)?(.+)/i,
+    /(?:can you|could you|please)\s+(?:tell|say to|message|text|send|let)\s+(\w+)\s+(?:that\s+)?(.+)/i,
+    /(?:i want to|i'd like to|i need to)\s+(?:tell|say to|message|send|text)\s+(\w+)\s+(?:that\s+)?(.+)/i,
+    /(?:send|give)\s+(?:a\s+)?(?:message|note|text)\s+to\s+(\w+)\s*[:\-,]?\s*(.+)/i,
+    /(?:let)\s+(\w+)\s+know\s+(?:that\s+)?(.+)/i
+  ];
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match) {
+      return { name: match[1], content: match[2] };
+    }
+  }
+  return null;
+}
 
 // Send message to Warda (text)
 router.post('/message', async (req, res) => {
@@ -42,10 +61,10 @@ router.post('/message', async (req, res) => {
             careHomeId: (await prisma.user.findUnique({ where: { id: userId }, select: { careHomeId: true } }))?.careHomeId,
             type: wardaResponse.mood === 'health_concern' ? 'HEALTH' : 'MOOD',
             severity: wardaResponse.mood === 'health_concern' ? 'HIGH' : 'MEDIUM',
-            title: wardaResponse.mood === 'health_concern' 
-              ? `Health concern detected for resident`
-              : `Resident may need comfort`,
-            description: `Resident said: "${message.substring(0, 100)}"`,
+            title: wardaResponse.mood === 'health_concern'
+              ? 'Health concern detected for resident'
+              : 'Resident may need comfort',
+            description: 'Resident said: "' + message.substring(0, 100) + '"',
             status: 'ACTIVE'
           }
         });
@@ -54,13 +73,91 @@ router.post('/message', async (req, res) => {
       }
     }
 
+    // ─── FAMILY MESSAGE DETECTION ───
+    let familyMessageSent = null;
+    const intent = detectFamilyMessageIntent(message);
+
+    if (intent) {
+      try {
+        const familyContacts = await prisma.familyContact.findMany({
+          where: { userId: userId }
+        });
+
+        const contact = familyContacts.find(function(fc) {
+          return fc.name.toLowerCase().includes(intent.name.toLowerCase());
+        });
+
+        if (contact) {
+          // Clean up message
+          var cleanMessage = intent.content
+            .replace(/\s*please\s*$/i, '')
+            .replace(/^\s+|\s+$/g, '');
+          cleanMessage = cleanMessage.charAt(0).toUpperCase() + cleanMessage.slice(1);
+
+          // Get resident info
+          var resident = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { firstName: true, preferredName: true }
+          });
+          var residentName = (resident && resident.preferredName) || (resident && resident.firstName) || 'Your loved one';
+
+          // Save message to DB
+          try {
+            await prisma.message.create({
+              data: {
+                content: cleanMessage,
+                sender: userId,
+                type: 'text',
+                userId: userId,
+                isFromWarda: false
+              }
+            });
+          } catch (dbErr) {
+            console.error('Failed to save family message:', dbErr);
+          }
+
+          // Broadcast to family via WebSocket
+          var io = req.app.get('io');
+          if (io) {
+            var familyPayload = {
+              id: 'fam_' + Date.now(),
+              content: cleanMessage,
+              senderId: userId,
+              senderName: residentName,
+              recipientId: contact.id,
+              recipientName: contact.name,
+              type: 'text',
+              sentViaWarda: true,
+              timestamp: new Date().toISOString()
+            };
+            io.to('family:' + userId).emit('message:from_resident', familyPayload);
+            console.log('Family message sent: "' + cleanMessage + '" to ' + contact.name);
+          }
+
+          familyMessageSent = {
+            contactName: contact.name.split(' ')[0],
+            message: cleanMessage
+          };
+        }
+      } catch (famErr) {
+        console.error('Family message detection error:', famErr);
+      }
+    }
+
+    // Build response text
+    var responseText = wardaResponse.text;
+    if (familyMessageSent) {
+      responseText = responseText + '\n\nI have sent your message to ' + familyMessageSent.contactName + '.';
+    }
+
     res.json({
       success: true,
       response: {
-        text: wardaResponse.text,
+        text: responseText,
         mood: wardaResponse.mood,
         suggestions: wardaResponse.suggestions,
-        profileUsed: wardaResponse.profileUsed
+        profileUsed: wardaResponse.profileUsed,
+        familyMessageSent: familyMessageSent
       }
     });
   } catch (error) {
@@ -86,8 +183,6 @@ router.get('/history/:userId', async (req, res) => {
 router.post('/start', async (req, res) => {
   try {
     const { userId, residentName } = req.body;
-
-    // Try to load resident profile for personalised greeting
     let greeting;
     if (userId) {
       const profile = await getResidentProfile(userId);
@@ -95,27 +190,25 @@ router.post('/start', async (req, res) => {
         greeting = profile.greetingStyle;
       } else {
         const hour = new Date().getHours();
-        const name = profile?.preferredName || residentName || 'there';
-        let timeGreeting = 'Hello';
+        const name = (profile && profile.preferredName) || residentName || 'there';
+        var timeGreeting = 'Hello';
         if (hour < 12) timeGreeting = 'Good morning';
         else if (hour < 17) timeGreeting = 'Good afternoon';
         else timeGreeting = 'Good evening';
-
-        if (profile?.useGaelic) {
+        if (profile && profile.useGaelic) {
           if (hour < 12) timeGreeting = 'Madainn mhath';
           else if (hour < 17) timeGreeting = 'Feasgar math';
           else timeGreeting = 'Feasgar math';
         }
-        greeting = `${timeGreeting}, ${name}! It's Warda here. How are you feeling today, dear?`;
+        greeting = timeGreeting + ', ' + name + '! It is Warda here. How are you feeling today, dear?';
       }
     } else {
-      greeting = `Hello there! It's Warda. How are you feeling today?`;
+      greeting = 'Hello there! It is Warda. How are you feeling today?';
     }
-
     res.json({
       success: true,
       greeting,
-      sessionId: `session_${userId || 'anon'}_${Date.now()}`
+      sessionId: 'session_' + (userId || 'anon') + '_' + Date.now()
     });
   } catch (error) {
     console.error('Start conversation error:', error);

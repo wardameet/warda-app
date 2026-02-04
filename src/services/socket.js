@@ -32,6 +32,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const { cacheSet, cacheGet, cacheDelete, publish } = require('./redis');
+const { sendPushToFamily } = require('./pushNotification');
 
 const prisma = new PrismaClient();
 
@@ -271,6 +272,8 @@ function initializeSocket(io) {
 
         // 4. Notify family members
         io.to(`family:${residentId}`).emit('alert:new', alertPayload);
+        // 4b. Push notification to family
+        sendPushToFamily(residentId, { title: 'Help Alert', body: alertPayload.message || 'Your loved one pressed the help button', tag: 'alert-' + alertPayload.id, data: { type: 'alert' } }).catch(e => console.error('Push failed:', e));
 
         // 5. Publish to Redis for distributed systems
         await publish('alerts', alertPayload);
@@ -514,6 +517,7 @@ function initializeSocket(io) {
         // Notify family (for medium+ severity)
         if (severity !== 'low') {
           io.to(`family:${residentId}`).emit('alert:new', alertPayload);
+          sendPushToFamily(residentId, { title: 'Mood Alert', body: alertPayload.message || 'A mood concern was detected', tag: 'alert-' + alertPayload.id, data: { type: 'alert' } }).catch(e => console.error('Push failed:', e));
         }
 
         // Notify admin
@@ -707,6 +711,7 @@ function broadcastAlert(io, { type, severity, message, residentId, residentName,
 
   if (severity !== 'low') {
     io.to(`family:${residentId}`).emit('alert:new', alertPayload);
+    sendPushToFamily(residentId, { title: 'Alert', body: alertPayload.message || 'New alert for your loved one', tag: 'alert-' + alertPayload.id, data: { type: 'alert' } }).catch(e => console.error('Push failed:', e));
   }
 
   return alertPayload;

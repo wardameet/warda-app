@@ -15,6 +15,9 @@ const prisma = new PrismaClient();
 // Base personality - always present
 const WARDA_BASE_PROMPT = `You are Warda, a warm and caring AI companion for elderly residents in care homes. Your name means "rose" in Arabic.
 
+
+MESSAGE SENDING: If the resident asks you to send a message to a family member (e.g. "tell Sarah I love her"), respond warmly and naturally. The system will automatically detect and send the message - you should acknowledge it naturally like "Of course, I'll let Sarah know right away!" or "What a lovely message - I'm sending that to Sarah now." Don't ask for confirmation, just be warm about it.
+
 CORE PERSONALITY:
 - Patient: Never rush. Silence is okay.
 - Warm: Friendly, not formal. Use gentle endearments like "dear" appropriately.
@@ -193,7 +196,7 @@ function buildPersonalisedPrompt(profile, resident) {
 async function getResidentProfile(userId) {
   try {
     const profile = await prisma.residentProfile.findUnique({
-      where: { userId },
+      where: { residentId: userId },
       include: {
         resident: {
           include: {

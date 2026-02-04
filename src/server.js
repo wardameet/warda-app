@@ -19,6 +19,15 @@ const familyRoutes = require('./routes/family');
 const messagesRoutes = require('./routes/messages');
 const voiceRoutes = require('./routes/voice');
 
+// Real-time Routes
+const alertRoutes = require('./routes/alerts');
+const presenceRoutes = require('./routes/presence');
+
+// Photo Sharing
+const photoRoutes = require('./routes/photos');
+const analyticsRoutes = require('./routes/analytics');
+const pushRoutes = require('./routes/push');
+
 // Admin Portal Routes
 const adminAuthRoutes = require('./routes/admin/auth');
 const adminCareHomeRoutes = require('./routes/admin/careHomes');
@@ -63,6 +72,11 @@ app.use('/api/conversation', conversationRoutes);
 app.use('/api/family', familyRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/voice', voiceRoutes);
+app.use('/api/alerts', alertRoutes);
+app.use('/api/presence', presenceRoutes);
+app.use('/api/photos', photoRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/push', pushRoutes);
 
 // Admin Portal API
 app.use('/api/admin/auth', adminAuthRoutes);

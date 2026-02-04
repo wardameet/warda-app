@@ -442,3 +442,14 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
 }
+
+model PushSubscription {
+  id           String   @id @default(uuid())
+  endpoint     String   @unique
+  p256dh       String
+  auth         String
+  userId       String
+  userType     String   @default("family")
+  createdAt    DateTime @default(now())
+  @@index([userId])
+}

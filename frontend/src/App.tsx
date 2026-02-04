@@ -5,13 +5,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ============ CONFIG ============
-// TODO: These should come from login/PIN screen - hardcoded for pilot
-const RESIDENT_ID = 'margaret123';
-const RESIDENT_NAME = 'Margaret';
-const CARE_HOME_ID = 'sunny-gardens-001';
+// Resident config - defaults overridden by PIN login in App()
+let RESIDENT_ID = "";
+let RESIDENT_NAME = "";
+let CARE_HOME_ID = "";
 
 // ============ TYPES ============
-type Screen = 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith';
+type Screen = 'pin' | 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith';
 
 interface Contact {
   id: string;
@@ -38,19 +38,13 @@ interface Message {
 }
 
 // ============ MOCK DATA ============
-const mockContacts: Contact[] = [
-  { id: '1', name: 'Sarah', relation: 'Daughter', avatar: '👩', online: true, unreadCount: 2, lastMessage: 'The kids loved the park!' },
-  { id: '2', name: 'James', relation: 'Son', avatar: '👨', online: false, unreadCount: 1, lastMessage: 'Call you tomorrow Mum' },
-  { id: '3', name: 'Emma', relation: 'Granddaughter', avatar: '👧', online: true, unreadCount: 0, lastMessage: 'Love you Granny! 💕' },
-  { id: '4', name: 'Oliver', relation: 'Grandson', avatar: '👦', online: false, unreadCount: 0, lastMessage: 'Thanks for the birthday card!' },
-  { id: '5', name: 'Robert', relation: 'Brother', avatar: '👴', online: false, unreadCount: 0, lastMessage: 'See you Sunday' },
-];
+// Family contacts loaded from API after PIN login
+const mockContacts: Contact[] = [];
 
 const mockEvents: Event[] = [
   { id: '1', title: 'Sarah visiting', time: '14:00', type: 'family' },
   { id: '2', title: 'Afternoon tablets', time: '14:30', type: 'medication' },
   { id: '3', title: 'Chair yoga', time: '15:30', type: 'activity' },
-  { id: '4', title: 'Video call with James', time: '17:00', type: 'call' },
 ];
 
 const mockMessages: Message[] = [
@@ -181,6 +175,107 @@ const WardaFace: React.FC<{ onClick: () => void; hasNotification: boolean }> = (
 
 // ============ SCREEN COMPONENTS ============
 
+// ─── PIN Login Screen ───────────────────────────────────
+const API_BASE = 'https://api.meetwarda.com/api';
+const CARE_HOME_ID_DEFAULT = '8d02b20b-8fb2-4e78-a77f-f3ba2f37f833';
+
+interface ResidentSession {
+  id: string;
+  firstName: string;
+  lastName: string;
+  preferredName: string;
+  roomNumber: string | null;
+  careHomeId: string;
+  careHomeName: string;
+}
+
+const PinLoginScreen: React.FC<{
+  onLogin: (session: ResidentSession) => void;
+}> = ({ onLogin }) => {
+  const [pin, setPin] = React.useState('');
+  const [error, setError] = React.useState('');
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  const handleDigit = (digit: string) => {
+    if (pin.length < 4) {
+      const newPin = pin + digit;
+      setPin(newPin);
+      setError('');
+      if (newPin.length === 4) submitPin(newPin);
+    }
+  };
+  const handleDelete = () => { setPin(prev => prev.slice(0, -1)); setError(''); };
+
+  const submitPin = async (pinCode: string) => {
+    setIsLoading(true); setError('');
+    try {
+      const response = await fetch(`${API_BASE}/auth/pin-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pinCode, careHomeId: CARE_HOME_ID_DEFAULT })
+      });
+      const data = await response.json();
+      if (data.success && data.resident) { onLogin(data.resident); }
+      else { setPin(''); setError(data.error || 'Wrong PIN. Please try again.'); }
+    } catch (err) { setPin(''); setError('Cannot connect. Please try again.'); }
+    setIsLoading(false);
+  };
+
+  const dots = [0, 1, 2, 3];
+  const keys = [['1','2','3'],['4','5','6'],['7','8','9'],['','0','⌫']];
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(180deg, #E8F5F0 0%, #F0FAF7 30%, #F7FCFA 60%, #FFFFFF 100%)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', padding: '20px', fontFamily: "'Segoe UI', system-ui, sans-serif"
+    }}>
+      <div style={{ marginBottom: 12, fontSize: 56 }}>🌹</div>
+      <h1 style={{ fontSize: 38, fontWeight: 700, color: '#1A5C4C', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Warda</h1>
+      <p style={{ fontSize: 16, color: '#5B8A7D', margin: '0 0 32px', fontWeight: 500 }}>You're Never Alone</p>
+      <p style={{ fontSize: 22, color: '#2D6A5A', marginBottom: 24, fontWeight: 600 }}>Enter your PIN to start</p>
+      <div style={{ display: 'flex', gap: 18, marginBottom: 20, height: 36 }}>
+        {dots.map(i => (
+          <div key={i} style={{
+            width: 28, height: 28, borderRadius: '50%',
+            border: `3px solid ${error ? '#DC2626' : '#2D9B83'}`,
+            background: i < pin.length ? (error ? '#DC2626' : '#2D9B83') : 'transparent',
+            transition: 'all 0.2s ease',
+            transform: i < pin.length ? 'scale(1.1)' : 'scale(1)',
+          }} />
+        ))}
+      </div>
+      {error && <p style={{ color: '#DC2626', fontSize: 17, marginBottom: 12, fontWeight: 600, textAlign: 'center' }}>{error}</p>}
+      {isLoading && <p style={{ color: '#2D9B83', fontSize: 17, marginBottom: 12, fontWeight: 600 }}>Signing in...</p>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 340, marginTop: 8 }}>
+        {keys.map((row, ri) => (
+          <div key={ri} style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            {row.map((key, ki) => (
+              <button key={ki}
+                onClick={() => { if (key === '⌫') handleDelete(); else if (key !== '') handleDigit(key); }}
+                disabled={isLoading || (key !== '⌫' && key !== '' && pin.length >= 4)}
+                style={{
+                  width: 90, height: 72, borderRadius: 16,
+                  border: key === '' ? 'none' : '2px solid #D1E8E0',
+                  background: key === '' ? 'transparent' : (key === '⌫' ? '#FEE2E2' : '#FFFFFF'),
+                  fontSize: key === '⌫' ? 28 : 32, fontWeight: 700,
+                  color: key === '⌫' ? '#DC2626' : '#1A5C4C',
+                  cursor: key === '' ? 'default' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: key === '' ? 'none' : '0 2px 8px rgba(0,0,0,0.06)',
+                  transition: 'all 0.15s ease', opacity: isLoading ? 0.5 : 1,
+                }}
+              >{key}</button>
+            ))}
+          </div>
+        ))}
+      </div>
+      <p style={{ marginTop: 32, fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>Ask your carer if you've forgotten your PIN</p>
+    </div>
+  );
+};
+
 // HOME SCREEN
 const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, time, onHelp, helpConfirmed }) => (
   <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -259,7 +354,7 @@ const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =>
 };
 
 // FAMILY SCREEN
-const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectContact: (contact: Contact) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onSelectContact, onHelp, helpConfirmed }) => (
+const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectContact: (contact: Contact) => void; onHelp: () => void; helpConfirmed: boolean; contacts: Contact[] }> = ({ onNavigate, onSelectContact, onHelp, helpConfirmed, contacts }) => (
   <motion.div key="family" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
@@ -267,7 +362,14 @@ const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectCon
       <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
     <div className="flex-1 grid grid-cols-3 gap-6 mb-6 overflow-y-auto" style={{ zIndex: 10 }}>
-      {mockContacts.map((contact) => (
+      {contacts.length === 0 ? (
+          <div className="col-span-3 flex flex-col items-center justify-center py-20">
+            <div className="text-6xl mb-4">👨‍👩‍👧</div>
+            <p className="text-xl text-gray-500">No family contacts yet</p>
+            <p className="text-gray-400 mt-2">Ask your care team to add your family</p>
+          </div>
+        ) : null}
+        {contacts.map((contact) => (
         <motion.button key={contact.id} onClick={() => onSelectContact(contact)}
           className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-white/50 hover:border-teal-300 transition-all"
           whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
@@ -562,7 +664,12 @@ const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
 
 // ============ MAIN APP ============
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('home');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('pin');
+  const [residentSession, setResidentSession] = React.useState<ResidentSession | null>(null);
+  const [familyContacts, setFamilyContacts] = React.useState<Contact[]>([]);
+  RESIDENT_ID = residentSession?.id || '';
+  RESIDENT_NAME = residentSession?.preferredName || '';
+  CARE_HOME_ID = residentSession?.careHomeId || '';
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -607,6 +714,16 @@ function App() {
     sendHelp();
   };
 
+  const handlePinLogin = (session: ResidentSession) => {
+    setResidentSession(session);
+    setCurrentScreen('home');
+    // Load family contacts from API
+    fetch('https://api.meetwarda.com/api/family/contacts/' + session.id)
+      .then(r => r.json())
+      .then(data => { if (data.success) setFamilyContacts(data.contacts); })
+      .catch(err => console.error('Failed to load family contacts:', err));
+  };
+
   // Generate bubbles
   const mainBubbles = Array.from({ length: 40 }, (_, i) => ({
     id: `main-${i}`, delay: (i % 12) * 1.2 + Math.random() * 3,
@@ -643,10 +760,11 @@ function App() {
 
       {/* Screens */}
       <AnimatePresence mode="wait">
+        {currentScreen === 'pin' && <PinLoginScreen onLogin={handlePinLogin} />}
         {currentScreen === 'home' && <HomeScreen onNavigate={handleNavigate} time={timeString} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'talk' && <TalkScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'voice' && <VoiceScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'family' && <FamilyScreen onNavigate={handleNavigate} onSelectContact={handleSelectContact} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'family' && <FamilyScreen onNavigate={handleNavigate} onSelectContact={handleSelectContact} onHelp={handleHelp} helpConfirmed={helpConfirmed}  contacts={familyContacts} />}
         {currentScreen === 'contact' && selectedContact && <ContactScreen contact={selectedContact} onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'activities' && <ActivitiesScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'health' && <HealthScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
