@@ -1,5 +1,7 @@
-// Warda Database Schema
-// PostgreSQL on AWS RDS
+// ============================================================
+// WARDA - Complete Database Schema
+// Updated: Feb 2026 - Admin Portal Support
+// ============================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -10,291 +12,499 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============ USERS ============
+// ============ ENUMS ============
 
-model User {
-  id            String    @id @default(uuid())
-  email         String?   @unique
-  cognitoId     String?   @unique
-  userType      UserType
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  // For residents
-  resident      Resident?
-  
-  // For family members
-  familyMember  FamilyMember?
-  
-  // For staff
-  staffMember   StaffMember?
-  
-  // Messages
-  sentMessages      Message[] @relation("SentMessages")
-  receivedMessages  Message[] @relation("ReceivedMessages")
-}
-
-enum UserType {
-  RESIDENT
-  FAMILY
+enum AdminRole {
+  SUPER_ADMIN
+  MANAGER
   STAFF
-  ADMIN
-}
-
-// ============ RESIDENTS ============
-
-model Resident {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  user            User      @relation(fields: [userId], references: [id])
-  
-  firstName       String
-  lastName        String
-  preferredName   String?
-  dateOfBirth     DateTime?
-  roomNumber      String?
-  
-  // Care home assignment
-  careHomeId      String?
-  careHome        CareHome? @relation(fields: [careHomeId], references: [id])
-  
-  // Settings
-  pin             String?   // 4-digit PIN for login
-  language        String    @default("en-GB")
-  voicePreference String    @default("female") // For Polly TTS
-  
-  // Family contacts
-  familyContacts  FamilyContact[]
-  
-  // Health
-  medications     Medication[]
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-}
-
-// ============ FAMILY ============
-
-model FamilyMember {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  user            User      @relation(fields: [userId], references: [id])
-  
-  firstName       String
-  lastName        String
-  phone           String?
-  
-  // Contacts (residents they're connected to)
-  contacts        FamilyContact[]
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-}
-
-model FamilyContact {
-  id              String    @id @default(uuid())
-  
-  residentId      String
-  resident        Resident  @relation(fields: [residentId], references: [id])
-  
-  familyMemberId  String
-  familyMember    FamilyMember @relation(fields: [familyMemberId], references: [id])
-  
-  relationship    String    // daughter, son, spouse, etc.
-  isPrimary       Boolean   @default(false)
-  isBlocked       Boolean   @default(false)
-  
-  // Permissions
-  canViewMedications  Boolean @default(false)
-  canViewMood         Boolean @default(true)
-  canReceiveAlerts    Boolean @default(true)
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  @@unique([residentId, familyMemberId])
-}
-
-// ============ STAFF ============
-
-model StaffMember {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  user            User      @relation(fields: [userId], references: [id])
-  
-  firstName       String
-  lastName        String
-  role            StaffRole
-  
-  careHomeId      String?
-  careHome        CareHome? @relation(fields: [careHomeId], references: [id])
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
 }
 
 enum StaffRole {
   CARER
-  NURSE
+  SENIOR_CARER
   MANAGER
-  ADMIN
+}
+
+enum SubscriptionTier {
+  PILOT
+  STANDARD
+  PREMIUM
+}
+
+enum CareHomeStatus {
+  ACTIVE
+  PILOT
+  PAUSED
+  CANCELLED
+}
+
+enum ResidentStatus {
+  ACTIVE
+  INACTIVE
+  DISCHARGED
+}
+
+enum AccountType {
+  B2B
+  B2C
+}
+
+enum TabletStatus {
+  ACTIVE
+  OFFLINE
+  AVAILABLE
+  SHIPPING
+}
+
+enum AccessLevel {
+  FULL
+  VIEW_ONLY
+  EMERGENCY
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
+enum DementiaStage {
+  NONE
+  MILD
+  MODERATE
+  ADVANCED
+}
+
+enum MobilityLevel {
+  INDEPENDENT
+  WITH_AID
+  WHEELCHAIR
+  BEDBOUND
+}
+
+enum CommunicationStyle {
+  CHATTY
+  QUIET
+  VARIES
+  NON_VERBAL
+}
+
+// ============ ADMIN USERS (Portal Login) ============
+
+model AdminUser {
+  id          String    @id @default(uuid())
+  email       String    @unique
+  name        String
+  role        AdminRole
+  careHomeId  String?
+  careHome    CareHome? @relation(fields: [careHomeId], references: [id])
+  cognitoSub  String?   @unique
+  phone       String?
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([careHomeId])
+  @@index([role])
 }
 
 // ============ CARE HOMES ============
 
 model CareHome {
-  id              String    @id @default(uuid())
+  id               String           @id @default(uuid())
+  name             String
+  address          String?
+  city             String?
+  postcode         String?
+  country          String           @default("UK")
+  phone            String?
+  managerName      String?
+  managerEmail     String?
+  subscriptionTier SubscriptionTier @default(PILOT)
+  status           CareHomeStatus   @default(ACTIVE)
+  cqcNumber        String?
+  maxResidents     Int              @default(50)
+  logoUrl          String?
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  users       User[]
+  staff       StaffMember[]
+  tablets     Tablet[]
+  adminUsers  AdminUser[]
+
+  @@index([status])
+}
+
+// ============ USERS (Elderly Residents) ============
+
+model User {
+  id            String         @id @default(uuid())
+  firstName     String
+  lastName      String
+  preferredName String?
+  email         String?        @unique
+  dateOfBirth   DateTime?
+  roomNumber    String?
+  pin           String?
+  photoUrl      String?
+  status        ResidentStatus @default(ACTIVE)
+  accountType   AccountType    @default(B2B)
+  moveInDate    DateTime?
+
+  careHomeId    String?
+  careHome      CareHome?      @relation(fields: [careHomeId], references: [id])
+  tabletId      String?        @unique
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  profile        ResidentProfile?
+  familyContacts FamilyContact[]
+  messages       Message[]
+  conversations  Conversation[]
+  medications    Medication[]
+  calendarEvents CalendarEvent[]
+  healthLogs     HealthLog[]
+  alerts         Alert[]
+  tablet         Tablet?        @relation(fields: [tabletId], references: [id])
+
+  @@index([careHomeId])
+  @@index([status])
+}
+
+// ============ RESIDENT PROFILE (Therapeutic - Heart of Warda) ============
+
+model ResidentProfile {
+  id              String   @id @default(uuid())
+  residentId      String   @unique
+  resident        User     @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  // === Step 2: Life Background ===
+  maritalStatus   String?
+  spouseName      String?
+  spouseDetails   String?
+  children        Json?
+  grandchildren   Json?
+  previousCareer  String?
+  grewUpIn        String?
+  keyMemories     String?
+  pets            String?
+
+  // === Step 3: Sensitive Topics ===
+  avoidTopics     String[]
+  sensitiveTopics String[]
+  traumaNotes     String?
+  knownTriggers   String[]
+  bereavementStatus String?
+
+  // === Step 4: Joy & Interests ===
+  joyTopics       String[]
+  hobbies         String[]
+  favouriteMusic  String?
+  favouriteTv     String?
+  joyTriggers     String[]
+  favouriteMemories Json?
+  favouriteFoods  String?
+  sportsTeams     String?
+  memories        String[]
+
+  // === Step 5: Faith & Culture ===
+  faithType       String?
+  denomination    String?
+  faithComfort    Boolean  @default(false)
+  prayerReminders Boolean  @default(false)
+  prayerTimes     Json?
+  favouriteScriptures String?
+  culturalBackground  String?
+  useGaelic       Boolean  @default(false)
+  languagePreference  String  @default("English")
+  useReligious    Boolean  @default(false)
+  useScottish     Boolean  @default(false)
+  useWelsh        Boolean  @default(false)
+  useIrish        Boolean  @default(false)
+  faithPhrases    String[]
+
+  // === Step 6: Health & Communication ===
+  dementiaStage       DementiaStage?
+  mobilityLevel       MobilityLevel?
+  hearing             String?
+  vision              String?
+  communicationStyle  CommunicationStyle?
+  bestTimeOfDay       String[]
+  dietaryNeeds        String?
+
+  // === Step 7: Warda's Persona ===
+  wardaBackstory  String?
+  wardaAge        String?
+  wardaTraits     String[]
+  greetingStyle   String?
+  conversationTopics String[]
+  hardBoundaries  String[]
+
+  // Therapeutic goals
+  therapyGoals    String[]
+
+  // Family knowledge (JSON blob)
+  familyDetails   String?
+
+  // Questionnaire progress
+  questionnaireStep    Int      @default(0)
+  questionnaireComplete Boolean @default(false)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============ STAFF MEMBERS ============
+
+model StaffMember {
+  id          String    @id @default(uuid())
+  email       String    @unique
+  name        String
+  phone       String?
+  role        StaffRole @default(CARER)
+  careHomeId  String
+  careHome    CareHome  @relation(fields: [careHomeId], references: [id])
+  cognitoSub  String?   @unique
+  isActive    Boolean   @default(true)
+  assignedResidents String[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([careHomeId])
+  @@index([role])
+}
+
+// ============ FAMILY CONTACTS ============
+
+model FamilyContact {
+  id              String      @id @default(uuid())
   name            String
-  address         String?
+  relationship    String
   phone           String?
-  
-  residents       Resident[]
-  staff           StaffMember[]
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  email           String?
+  photoUrl        String?
+  isPrimary       Boolean     @default(false)
+  accessLevel     AccessLevel @default(FULL)
+  inviteStatus    InviteStatus @default(PENDING)
+  cognitoSub      String?     @unique
+  stripeCustomerId String?
+
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([inviteStatus])
+}
+
+// ============ TABLETS ============
+
+model Tablet {
+  id              String       @id @default(uuid())
+  serialNumber    String       @unique
+  status          TabletStatus @default(AVAILABLE)
+  careHomeId      String?
+  careHome        CareHome?    @relation(fields: [careHomeId], references: [id])
+  lastOnline      DateTime?
+  batteryLevel    Int?
+  firmwareVersion String?
+  shippingStatus  String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  assignedUser    User?
+
+  @@index([careHomeId])
+  @@index([status])
+}
+
+// ============ CONVERSATIONS ============
+
+model Conversation {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  mood      String?
+  summary   String?
+  duration  Int?
+
+  messages  Message[]
+
+  @@index([userId])
+  @@index([startedAt])
 }
 
 // ============ MESSAGES ============
 
 model Message {
-  id              String    @id @default(uuid())
-  
-  senderId        String
-  sender          User      @relation("SentMessages", fields: [senderId], references: [id])
-  
-  recipientId     String
-  recipient       User      @relation("ReceivedMessages", fields: [recipientId], references: [id])
-  
-  content         String?
-  messageType     MessageType @default(TEXT)
-  
-  // Media (for photos, voice messages)
-  mediaKey        String?   // S3 key
-  mediaThumbnail  String?   // S3 key for thumbnail
-  
-  // Status
-  status          MessageStatus @default(SENT)
-  readAt          DateTime?
-  
-  // Warda-specific
-  sentViaWarda    Boolean   @default(false)
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String       @id @default(uuid())
+  content        String
+  sender         String
+  type           String       @default("text")
+  mood           String?
+  isFromWarda    Boolean      @default(false)
+
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id])
+
+  createdAt      DateTime     @default(now())
+
+  @@index([userId])
+  @@index([conversationId])
+  @@index([createdAt])
 }
 
-enum MessageType {
-  TEXT
-  PHOTO
-  VOICE
-  VIDEO
-}
-
-enum MessageStatus {
-  SENT
-  DELIVERED
-  READ
-}
-
-// ============ HEALTH ============
+// ============ MEDICATIONS ============
 
 model Medication {
-  id              String    @id @default(uuid())
-  
-  residentId      String
-  resident        Resident  @relation(fields: [residentId], references: [id])
-  
-  name            String
-  dosage          String?
-  instructions    String?
-  
-  // Schedule
-  times           String[]  // ["08:00", "20:00"]
-  
-  isActive        Boolean   @default(true)
-  
-  // Tracking
-  logs            MedicationLog[]
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  dosage    String?
+  frequency String?
+  timeOfDay String[]
+  notes     String?
+  isActive  Boolean  @default(true)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
-model MedicationLog {
-  id              String    @id @default(uuid())
-  
-  medicationId    String
-  medication      Medication @relation(fields: [medicationId], references: [id])
-  
-  scheduledTime   DateTime
-  takenAt         DateTime?
-  skipped         Boolean   @default(false)
-  notes           String?
-  
-  confirmedBy     String?   // Staff member ID if manually confirmed
-  
-  createdAt       DateTime  @default(now())
+// ============ HEALTH LOGS ============
+
+model HealthLog {
+  id        String   @id @default(uuid())
+  type      String
+  value     String
+  notes     String?
+  recordedBy String?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 // ============ ALERTS ============
 
 model Alert {
-  id              String    @id @default(uuid())
-  
-  residentId      String
-  careHomeId      String
-  
-  alertType       AlertType
-  message         String?
-  
-  isResolved      Boolean   @default(false)
-  resolvedAt      DateTime?
-  resolvedBy      String?
-  
-  createdAt       DateTime  @default(now())
+  id          String   @id @default(uuid())
+  type        String
+  severity    String   @default("low")
+  message     String
+  isResolved  Boolean  @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([isResolved])
+  @@index([severity])
+  @@index([createdAt])
 }
 
-enum AlertType {
-  HELP_BUTTON
-  MEDICATION_MISSED
-  MOOD_CONCERN
-  INACTIVITY
-  FALL_DETECTED
+// ============ AUDIT LOG (Admin Actions) ============
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  adminUserId String
+  action      String
+  entityType  String
+  entityId    String?
+  details     Json?
+  ipAddress   String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([adminUserId])
+  @@index([action])
+  @@index([createdAt])
 }
 
-// ============ RESIDENT PROFILE (Therapeutic) ============
+model PushSubscription {
+  id           String   @id @default(uuid())
+  endpoint     String   @unique
+  p256dh       String
+  auth         String
+  userId       String
+  userType     String   @default("family")
+  createdAt    DateTime @default(now())
+  @@index([userId])
+}
 
-model ResidentProfile {
-  id              String    @id @default(uuid())
-  
-  residentId      String    @unique
-  
-  // Warda's Persona for this resident
-  wardaBackstory  String?   // "Warda is widowed, has 2 children, loves gardening"
-  wardaAge        String?   // "in her 60s"
-  wardaTraits     String[]  // ["widowed", "mother", "Scottish"]
-  
-  // Topics to handle carefully
-  avoidTopics     String[]  // ["children", "hospital", "war"]
-  sensitiveTopics String[]  // ["late husband William", "daughter who moved away"]
-  
-  // Positive topics
-  joyTopics       String[]  // ["grandchildren", "gardening", "music", "baking"]
-  memories        String[]  // ["worked as nurse", "met husband at dance", "grew up in Glasgow"]
-  
-  // Family knowledge
-  familyDetails   String?   // JSON: {"daughter": "Sarah, lives in London", "grandson": "Oliver, age 8"}
-  
-  // Communication style
-  useReligious    Boolean   @default(false)
-  useScottish     Boolean   @default(false)
-  useWelsh        Boolean   @default(false)
-  useIrish        Boolean   @default(false)
-  
-  // Therapeutic goals
-  therapyGoals    String[]  // ["reduce loneliness", "memory exercises", "encourage movement"]
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+
+model CalendarEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  time      String
+  type      String   @default("activity")
+  date      DateTime
+  notes     String?
+  recurring String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, date])
+}
+
+model Subscription {
+  id                    String    @id @default(uuid())
+  careHomeId            String?
+  email                 String
+  name                  String
+  planId                String
+  planName              String
+  amount                Int
+  currency              String    @default("gbp")
+  interval              String    @default("month")
+  residentCount         Int       @default(1)
+  status                String    @default("active")
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  invoices              Invoice[]
+  @@index([status])
+  @@index([careHomeId])
+}
+
+model Invoice {
+  id              String       @id @default(uuid())
+  subscriptionId  String
+  amount          Int
+  currency        String       @default("gbp")
+  status          String       @default("pending")
+  stripeInvoiceId String?
+  paidAt          DateTime?
+  dueDate         DateTime?
+  createdAt       DateTime     @default(now())
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  @@index([subscriptionId])
 }

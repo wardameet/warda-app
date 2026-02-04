@@ -1,6 +1,6 @@
 // ============================================================
 // WARDA - Complete Database Schema
-// Updated: Feb 2026 - Admin Portal Support
+// Updated: Feb 2026 - Unified Portal & Commission System
 // ============================================================
 
 generator client {
@@ -18,6 +18,9 @@ enum AdminRole {
   SUPER_ADMIN
   MANAGER
   STAFF
+  GP
+  FAMILY_B2B
+  FAMILY_B2C
 }
 
 enum StaffRole {
@@ -90,6 +93,48 @@ enum CommunicationStyle {
   NON_VERBAL
 }
 
+// === NEW ENUMS FOR BILLING & ORDERS ===
+
+enum BillingType {
+  CARE_HOME_PAYS
+  CARE_HOME_COLLECTS
+  RESIDENT_PAYS
+  FAMILY_PAYS
+}
+
+enum OrderStatus {
+  WAITING_QUESTIONNAIRE
+  WAITING_PAYMENT
+  PENDING_DISPATCH
+  CREDENTIALS_SENT
+  SHIPPED
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum CommissionTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
 // ============ ADMIN USERS (Portal Login) ============
 
 model AdminUser {
@@ -103,11 +148,20 @@ model AdminUser {
   phone       String?
   isActive    Boolean   @default(true)
   lastLoginAt DateTime?
+  
+  // For Family users - link to their elderly relative
+  linkedResidentId String?
+  
+  // Temporary password tracking
+  tempPassword      String?
+  mustChangePassword Boolean @default(false)
+  
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@index([careHomeId])
   @@index([role])
+  @@index([linkedResidentId])
 }
 
 // ============ CARE HOMES ============
@@ -128,13 +182,29 @@ model CareHome {
   maxResidents     Int              @default(50)
   logoUrl          String?
   notes            String?
+  
+  // === BILLING ===
+  billingEmail     String?
+  billingAddress   String?
+  vatNumber        String?
+  
+  // === COMMISSION PROGRAM ===
+  commissionTier          CommissionTier @default(BRONZE)
+  commissionRate          Float          @default(0.10)
+  totalCommissionEarned   Float          @default(0)
+  commissionBalance       Float          @default(0)
+  bankAccountName         String?
+  bankAccountNumber       String?
+  bankSortCode            String?
+  
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  users       User[]
-  staff       StaffMember[]
-  tablets     Tablet[]
-  adminUsers  AdminUser[]
+  users            User[]
+  staff            StaffMember[]
+  tablets          Tablet[]
+  adminUsers       AdminUser[]
+  commissionPayouts CommissionPayout[]
 
   @@index([status])
 }
@@ -159,6 +229,24 @@ model User {
   careHome      CareHome?      @relation(fields: [careHomeId], references: [id])
   tabletId      String?        @unique
 
+  // === BILLING & ORDER STATUS ===
+  billingType       BillingType   @default(CARE_HOME_PAYS)
+  billingEmail      String?
+  orderStatus       OrderStatus   @default(WAITING_QUESTIONNAIRE)
+  stripeCustomerId  String?
+  stripePaymentIntentId String?
+  
+  // Order tracking dates
+  paymentLinkSentAt   DateTime?
+  paymentConfirmedAt  DateTime?
+  credentialsSentAt   DateTime?
+  dispatchedAt        DateTime?
+  activatedAt         DateTime?
+  
+  // Referral tracking (for commission)
+  referredByCareHomeId String?
+  isCommissionEligible Boolean @default(false)
+
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -174,6 +262,8 @@ model User {
 
   @@index([careHomeId])
   @@index([status])
+  @@index([orderStatus])
+  @@index([billingType])
 }
 
 // ============ RESIDENT PROFILE (Therapeutic - Heart of Warda) ============
@@ -316,6 +406,7 @@ model Tablet {
   batteryLevel    Int?
   firmwareVersion String?
   shippingStatus  String?
+  trackingNumber  String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
@@ -455,7 +546,6 @@ model PushSubscription {
   @@index([userId])
 }
 
-
 model CalendarEvent {
   id        String   @id @default(uuid())
   userId    String
@@ -471,9 +561,12 @@ model CalendarEvent {
   @@index([userId, date])
 }
 
+// ============ SUBSCRIPTIONS (Updated) ============
+
 model Subscription {
   id                    String    @id @default(uuid())
   careHomeId            String?
+  userId                String?
   email                 String
   name                  String
   planId                String
@@ -493,18 +586,98 @@ model Subscription {
   invoices              Invoice[]
   @@index([status])
   @@index([careHomeId])
+  @@index([userId])
 }
 
+// ============ INVOICES (Updated) ============
+
 model Invoice {
-  id              String       @id @default(uuid())
-  subscriptionId  String
+  id              String        @id @default(uuid())
+  subscriptionId  String?
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  
+  // Direct billing (without subscription)
+  careHomeId      String?
+  userId          String?
+  
+  // Invoice details
+  invoiceNumber   String?       @unique
   amount          Int
-  currency        String       @default("gbp")
-  status          String       @default("pending")
+  currency        String        @default("gbp")
+  status          InvoiceStatus @default(DRAFT)
+  
+  // Line items
+  lineItems       Json?
+  
+  // Stripe
   stripeInvoiceId String?
-  paidAt          DateTime?
+  stripePaymentUrl String?
+  
+  // Dates
+  issueDate       DateTime      @default(now())
   dueDate         DateTime?
-  createdAt       DateTime     @default(now())
-  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  paidAt          DateTime?
+  
+  // PDF
+  pdfUrl          String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
   @@index([subscriptionId])
+  @@index([careHomeId])
+  @@index([status])
+}
+
+// ============ COMMISSION PAYOUTS (New) ============
+
+model CommissionPayout {
+  id          String       @id @default(uuid())
+  careHomeId  String
+  careHome    CareHome     @relation(fields: [careHomeId], references: [id])
+  
+  // Payout details
+  amount      Float
+  period      String       // "2026-02" format
+  referrals   Int          // Number of paying referrals that month
+  rate        Float        // Commission rate at time of payout
+  
+  // Status
+  status      PayoutStatus @default(PENDING)
+  paidAt      DateTime?
+  reference   String?      // Bank transfer reference
+  
+  // Notes
+  notes       String?
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([careHomeId])
+  @@index([status])
+  @@index([period])
+}
+
+// ============ EMAIL TEMPLATES (New) ============
+
+model EmailTemplate {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  subject     String
+  body        String
+  variables   String[] // List of variable names like ["name", "pin", "tempPassword"]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============ SYSTEM SETTINGS (New) ============
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
