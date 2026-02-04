@@ -11,7 +11,7 @@ let RESIDENT_NAME = "";
 let CARE_HOME_ID = "";
 
 // ============ TYPES ============
-type Screen = 'pin' | 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith';
+type Screen = 'pin' | 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith' | 'settings';
 
 interface Contact {
   id: string;
@@ -313,6 +313,7 @@ const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string;
       <NavCard icon="❤️" label="My Health" onClick={() => onNavigate('health')} />
       <NavCard icon="📅" label="My Day" onClick={() => onNavigate('myday')} />
       <NavCard icon="🌐" label="Browse Web" onClick={() => onNavigate('browse')} />
+      <NavCard icon="⚙️" label="Settings" onClick={() => onNavigate('settings')} />
     </motion.div>
     <BottomBar onBack={() => {}} onHome={() => {}} backDisabled homeDisabled />
   </motion.div>
@@ -663,6 +664,56 @@ const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
 );
 
 // ============ MAIN APP ============
+
+// ─── Settings Screen ──────────────────────────────────────
+const SettingsScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
+  const [volume, setVolume] = useState(80);
+  const [brightness, setBrightness] = useState(90);
+  const [textSize, setTextSize] = useState(100);
+  const [wardaSpeed, setWardaSpeed] = useState(50);
+
+  const SliderControl: React.FC<{ label: string; emoji: string; value: number; onChange: (v: number) => void; lowLabel: string; highLabel: string }> = ({ label, emoji, value, onChange, lowLabel, highLabel }) => (
+    <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-xl border-2 border-white/50 mb-5">
+      <div className="flex items-center gap-3 mb-4">
+        <span style={{ fontSize: 36 }}>{emoji}</span>
+        <span className="text-2xl font-bold text-teal-700" style={{ fontFamily: "Georgia, serif" }}>{label}</span>
+        <span className="ml-auto text-2xl font-bold text-teal-600">{value}%</span>
+      </div>
+      <input
+        type="range" min="0" max="100" value={value}
+        onChange={(e) => onChange(parseInt(e.target.value))}
+        style={{ width: '100%', height: 44, accentColor: '#0D9488', cursor: 'pointer' }}
+      />
+      <div className="flex justify-between mt-2">
+        <span className="text-lg text-gray-500">{lowLabel}</span>
+        <span className="text-lg text-gray-500">{highLabel}</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <motion.div key="settings" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
+      className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: "Georgia, serif" }}>⚙️ Settings</h1>
+        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+      </div>
+      <div className="flex-1 overflow-y-auto" style={{ zIndex: 10 }}>
+        <SliderControl emoji="🔊" label="Volume" value={volume} onChange={(v) => { setVolume(v); try { const u = new (window as any).AudioContext(); const g = u.createGain(); g.gain.value = v / 100; g.connect(u.destination); } catch(e){} }} lowLabel="Quiet" highLabel="Loud" />
+        <SliderControl emoji="☀️" label="Brightness" value={brightness} onChange={(v) => { setBrightness(v); document.body.style.filter = `brightness(${v / 100})`; }} lowLabel="Dim" highLabel="Bright" />
+        <SliderControl emoji="🔤" label="Text Size" value={textSize} onChange={(v) => { setTextSize(v); document.documentElement.style.fontSize = `${v}%`; }} lowLabel="Small" highLabel="Large" />
+        <SliderControl emoji="🗣️" label="Warda's Speed" value={wardaSpeed} onChange={setWardaSpeed} lowLabel="Slower" highLabel="Faster" />
+        <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-xl border-2 border-white/50 mb-5">
+          <p className="text-xl text-gray-600 text-center" style={{ fontFamily: "Georgia, serif" }}>
+            Need help? Press the <span className="text-red-500 font-bold">red help button</span> anytime.
+          </p>
+        </div>
+      </div>
+      <BottomBar onBack={() => onNavigate("home")} onHome={() => onNavigate("home")} />
+    </motion.div>
+  );
+};
+
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('pin');
   const [residentSession, setResidentSession] = React.useState<ResidentSession | null>(null);
@@ -771,6 +822,7 @@ function App() {
         {currentScreen === 'faith' && <FaithScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'myday' && <MyDayScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'browse' && <BrowseScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'settings' && <SettingsScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
       </AnimatePresence>
     </div>
   );
