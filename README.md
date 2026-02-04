@@ -26,7 +26,7 @@ Warda is an AI-powered companion system designed specifically for elderly users 
 - **AI:** Anthropic Claude (personalised conversations)
 - **Storage:** AWS S3 (photos, media)
 - **Cache:** AWS ElastiCache (Valkey)
-- **Hosting:** AWS EC2 (t3.small) + Nginx + Let's Encrypt
+- **Hosting:** AWS EC2 (t3.medium) + Nginx + Let's Encrypt
 
 ## 🔌 API: 104 endpoints across 23 route files
 
