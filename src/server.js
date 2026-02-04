@@ -33,6 +33,8 @@ const browseRoutes = require('./routes/browse');
 const medicationsRoutes = require('./routes/medications');
 const healthLogRoutes = require('./routes/healthLogs');
 const auditRoutes = require('./routes/audit');
+const activitiesRoutes = require('./routes/activities');
+const calendarRoutes = require('./routes/calendar');
 const { startMedicationReminders } = require('./services/medicationReminder');
 const { startProactiveScheduler } = require('./services/proactive');
 
@@ -91,6 +93,8 @@ app.use('/api/browse', browseRoutes);
 app.use('/api/medications', medicationsRoutes);
 app.use('/api/health-logs', healthLogRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/activities', activitiesRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 // Admin Portal API
 app.use('/api/admin/auth', adminAuthRoutes);

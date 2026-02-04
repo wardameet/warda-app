@@ -451,69 +451,328 @@ const ContactScreen: React.FC<{ contact: Contact; onNavigate: (screen: Screen) =
 );
 
 // ACTIVITIES SCREEN
-const ActivitiesScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => (
+const ActivitiesScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
+  const [tab, setTab] = useState<'menu'|'music'|'trivia'|'exercises'>('menu');
+  const [tracks, setTracks] = useState<any[]>([]);
+  const [genre, setGenre] = useState('');
+  const [genres, setGenres] = useState<string[]>([]);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [qIdx, setQIdx] = useState(0);
+  const [score, setScore] = useState(0);
+  const [answered, setAnswered] = useState<number|null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [exercises, setExercises] = useState<any[]>([]);
+  const [activeExercise, setActiveExercise] = useState<any>(null);
+  const [quizDone, setQuizDone] = useState(false);
+
+  const loadMusic = async (g?: string) => {
+    const params = g ? `?genre=${g}` : '';
+    const r = await fetch(API_BASE + '/api/activities/music' + params);
+    const d = await r.json();
+    setTracks(d.tracks || []); setGenres(d.genres || []);
+  };
+  const loadTrivia = async () => {
+    const r = await fetch(API_BASE + '/api/activities/trivia?count=5');
+    const d = await r.json();
+    setQuestions(d.questions || []); setQIdx(0); setScore(0); setAnswered(null); setFeedback(''); setQuizDone(false);
+  };
+  const loadExercises = async () => {
+    const r = await fetch(API_BASE + '/api/activities/exercises');
+    const d = await r.json();
+    setExercises(d.exercises || []);
+  };
+
+  const checkAnswer = async (idx: number) => {
+    if (answered !== null) return;
+    setAnswered(idx);
+    const q = questions[qIdx];
+    const r = await fetch(API_BASE + '/api/activities/trivia/check', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ question: q.q, selected: idx }) });
+    const d = await r.json();
+    setFeedback(d.message);
+    if (d.correct) setScore(s => s + 1);
+    setTimeout(() => {
+      if (qIdx + 1 < questions.length) { setQIdx(i => i + 1); setAnswered(null); setFeedback(''); }
+      else { setQuizDone(true); }
+    }, 2000);
+  };
+
+  return (
   <motion.div key="activities" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
-    <div className="flex justify-between items-center mb-6">
+    <div className="flex justify-between items-center mb-4">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🎯 Activities</h1>
       <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
-    <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-2xl p-4 mb-6 flex items-center gap-4" style={{ zIndex: 10 }}>
-      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-2xl">😊</div>
-      <p className="text-lg text-teal-800">It's a lovely afternoon, {RESIDENT_NAME}. How about some gentle stretches or your favourite music?</p>
-    </div>
-    <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
-      <motion.button className="bg-gradient-to-br from-purple-100 to-purple-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-300"
-        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">🎵</span><span className="text-2xl font-bold text-purple-800">Music</span><span className="text-purple-600">Songs, radio, decades</span>
-      </motion.button>
-      <motion.button className="bg-gradient-to-br from-orange-100 to-orange-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-orange-300"
-        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">🧩</span><span className="text-2xl font-bold text-orange-800">Games</span><span className="text-orange-600">Puzzles, trivia, memory</span>
-      </motion.button>
-      <motion.button className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-300"
-        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">🧘</span><span className="text-2xl font-bold text-green-800">Exercises</span><span className="text-green-600">Chair yoga, stretches</span>
-      </motion.button>
-    </div>
-    <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
+
+    {tab === 'menu' && (
+      <>
+        <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-2xl p-4 mb-4 flex items-center gap-4" style={{ zIndex: 10 }}>
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-2xl">😊</div>
+          <p className="text-lg text-teal-800">What would you like to do, {RESIDENT_NAME}?</p>
+        </div>
+        <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
+          <motion.button onClick={() => { setTab('music'); loadMusic(); }} className="bg-gradient-to-br from-purple-100 to-purple-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-300"
+            whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+            <span className="text-6xl">🎵</span><span className="text-2xl font-bold text-purple-800">Music</span><span className="text-purple-600">Songs & relaxation</span>
+          </motion.button>
+          <motion.button onClick={() => { setTab('trivia'); loadTrivia(); }} className="bg-gradient-to-br from-orange-100 to-orange-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-orange-300"
+            whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+            <span className="text-6xl">🧠</span><span className="text-2xl font-bold text-orange-800">Trivia Quiz</span><span className="text-orange-600">Test your knowledge</span>
+          </motion.button>
+          <motion.button onClick={() => { setTab('exercises'); loadExercises(); }} className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-300"
+            whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+            <span className="text-6xl">🧘</span><span className="text-2xl font-bold text-green-800">Exercises</span><span className="text-green-600">Gentle stretches</span>
+          </motion.button>
+        </div>
+      </>
+    )}
+
+    {tab === 'music' && (
+      <div className="flex-1 flex flex-col" style={{ zIndex: 10 }}>
+        <div className="flex gap-2 mb-4 flex-wrap">
+          <button onClick={() => { setGenre(''); loadMusic(); }} className={`px-4 py-2 rounded-full text-sm font-bold ${!genre ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>All</button>
+          {genres.map(g => <button key={g} onClick={() => { setGenre(g); loadMusic(g); }} className={`px-4 py-2 rounded-full text-sm font-bold ${genre === g ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{g}</button>)}
+        </div>
+        <div className="flex-1 overflow-auto space-y-2">
+          {tracks.map(t => (
+            <motion.div key={t.id} whileHover={{ scale: 1.01 }} className="bg-white rounded-2xl p-4 flex items-center gap-4 shadow border border-gray-100 cursor-pointer">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-2xl">🎵</div>
+              <div className="flex-1">
+                <div className="font-bold text-lg text-gray-800">{t.title}</div>
+                <div className="text-gray-500">{t.artist} · {t.genre} · {t.duration}</div>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">{t.mood}</span>
+            </motion.div>
+          ))}
+        </div>
+        <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back to Activities</button>
+      </div>
+    )}
+
+    {tab === 'trivia' && (
+      <div className="flex-1 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
+        {!quizDone && questions.length > 0 && (
+          <>
+            <div className="text-center mb-2"><span className="text-sm text-gray-500">Question {qIdx + 1} of {questions.length}</span> · <span className="font-bold text-teal-700">Score: {score}</span></div>
+            <div className="bg-white rounded-3xl p-8 shadow-xl max-w-xl w-full border-2 border-teal-200">
+              <div className="text-xs text-teal-600 font-bold mb-2">{questions[qIdx].category}</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">{questions[qIdx].q}</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {questions[qIdx].options.map((opt: string, i: number) => (
+                  <motion.button key={i} whileTap={{ scale: 0.95 }} onClick={() => checkAnswer(i)}
+                    className={`p-4 rounded-xl text-lg font-bold border-2 transition-all ${answered === null ? 'bg-gray-50 border-gray-200 hover:bg-teal-50 hover:border-teal-300' : i === questions[qIdx].answer ? 'bg-green-100 border-green-400 text-green-800' : answered === i ? 'bg-red-100 border-red-400 text-red-800' : 'bg-gray-50 border-gray-200 opacity-50'}`}>{opt}</motion.button>
+                ))}
+              </div>
+              {feedback && <div className={`mt-4 text-center text-lg font-bold ${feedback.includes('Well done') ? 'text-green-600' : 'text-orange-600'}`}>{feedback}</div>}
+            </div>
+          </>
+        )}
+        {quizDone && (
+          <div className="bg-white rounded-3xl p-8 shadow-xl text-center max-w-md border-2 border-teal-200">
+            <div className="text-6xl mb-4">{score >= 4 ? '🌟' : score >= 2 ? '👏' : '💪'}</div>
+            <h2 className="text-3xl font-bold text-teal-700 mb-2">Quiz Complete!</h2>
+            <p className="text-xl text-gray-600 mb-2">You scored {score} out of {questions.length}</p>
+            <p className="text-lg text-teal-600 mb-6">{score >= 4 ? 'Brilliant, dear! You're so clever!' : score >= 2 ? 'Well done, love! Great effort!' : 'Good try, dear! Shall we play again?'}</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => loadTrivia()} className="px-6 py-3 bg-teal-600 text-white rounded-xl font-bold text-lg">Play Again</button>
+              <button onClick={() => setTab('menu')} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold text-lg">Back</button>
+            </div>
+          </div>
+        )}
+        {!quizDone && <button onClick={() => setTab('menu')} className="mt-6 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back</button>}
+      </div>
+    )}
+
+    {tab === 'exercises' && (
+      <div className="flex-1" style={{ zIndex: 10 }}>
+        {!activeExercise ? (
+          <div className="grid grid-cols-2 gap-4">
+            {exercises.map(ex => (
+              <motion.button key={ex.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setActiveExercise(ex)}
+                className="bg-white rounded-2xl p-5 text-left shadow border border-gray-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-3xl">🧘</span>
+                  <div><div className="font-bold text-lg text-gray-800">{ex.name}</div><div className="text-sm text-gray-500">{ex.duration} · {ex.level}</div></div>
+                </div>
+                <p className="text-sm text-teal-700">{ex.benefit}</p>
+              </motion.button>
+            ))}
+          </div>
+        ) : (
+          <div className="max-w-lg mx-auto bg-white rounded-3xl p-8 shadow-xl border-2 border-green-200">
+            <h2 className="text-2xl font-bold text-green-700 mb-1">{activeExercise.name}</h2>
+            <div className="text-sm text-gray-500 mb-4">{activeExercise.duration} · {activeExercise.equipment} · {activeExercise.level}</div>
+            <div className="bg-green-50 rounded-xl p-4 mb-4">
+              <p className="text-green-800 font-medium">{activeExercise.benefit}</p>
+            </div>
+            <ol className="space-y-3">
+              {activeExercise.steps.map((step: string, i: number) => (
+                <li key={i} className="flex gap-3 items-start">
+                  <span className="w-8 h-8 bg-green-200 rounded-full flex items-center justify-center text-green-800 font-bold flex-shrink-0">{i+1}</span>
+                  <span className="text-lg text-gray-700 pt-1">{step}</span>
+                </li>
+              ))}
+            </ol>
+            <button onClick={() => setActiveExercise(null)} className="mt-6 w-full py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back to Exercises</button>
+          </div>
+        )}
+        {!activeExercise && <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back to Activities</button>}
+      </div>
+    )}
+
+    <BottomBar onBack={() => tab === 'menu' ? onNavigate('home') : setTab('menu')} onHome={() => onNavigate('home')} />
   </motion.div>
+  );
+}
 );
 
 // HEALTH SCREEN
-const HealthScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => (
+const HealthScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
+  const [tab, setTab] = useState<'menu'|'meds'|'mood'|'pain'>('menu');
+  const [meds, setMeds] = useState<any[]>([]);
+  const [activeMeds, setActiveMeds] = useState(0);
+  const [nextDue, setNextDue] = useState('');
+  const [moodVal, setMoodVal] = useState(3);
+  const [painVal, setPainVal] = useState(0);
+  const [logMsg, setLogMsg] = useState('');
+  const userId = localStorage.getItem('wardaUserId') || '';
+
+  const loadMeds = async () => {
+    if (!userId) return;
+    try { const r = await fetch(API_BASE + '/api/medications/' + userId); const d = await r.json(); setMeds(d.medications || []); setActiveMeds(d.activeCount || 0); setNextDue(d.nextDue || ''); } catch {}
+  };
+
+  const markTaken = async (medId: string) => {
+    try { await fetch(API_BASE + '/api/medications/' + medId + '/taken', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ recordedBy: 'resident' }) }); loadMeds(); } catch {}
+  };
+
+  const logMood = async () => {
+    if (!userId) return;
+    try { await fetch(API_BASE + '/api/health-logs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ userId, type: 'MOOD', value: String(moodVal), notes: 'Self-reported from tablet', recordedBy: 'resident' }) });
+      setLogMsg('Thank you, dear. Your mood has been recorded. 💚'); setTimeout(() => { setLogMsg(''); setTab('menu'); }, 2500);
+    } catch {}
+  };
+
+  const logPain = async () => {
+    if (!userId) return;
+    try { await fetch(API_BASE + '/api/health-logs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ userId, type: 'PAIN', value: String(painVal), notes: 'Self-reported from tablet', recordedBy: 'resident' }) });
+      setLogMsg('Thank you. Your care team has been notified. 💚'); setTimeout(() => { setLogMsg(''); setTab('menu'); }, 2500);
+    } catch {}
+  };
+
+  const moods = [{v:1,e:'😢',l:'Very Low'},{v:2,e:'😕',l:'Low'},{v:3,e:'😐',l:'Okay'},{v:4,e:'🙂',l:'Good'},{v:5,e:'😊',l:'Great'}];
+
+  return (
   <motion.div key="health" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
-    <div className="flex justify-between items-center mb-6">
+    <div className="flex justify-between items-center mb-4">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>❤️ My Health</h1>
       <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
     </div>
-    <div className="flex-1 grid grid-cols-2 gap-6 mb-6" style={{ zIndex: 10 }}>
-      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-5xl">💊</span><span className="text-xl font-bold text-gray-800">Medications</span>
-        <div className="bg-purple-100 px-4 py-2 rounded-full"><span className="text-purple-700 font-semibold">Next: 2:30 PM</span></div>
-      </motion.button>
-      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-red-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-5xl">📊</span><span className="text-xl font-bold text-gray-800">My Vitals</span>
-        <div className="bg-red-100 px-4 py-2 rounded-full"><span className="text-red-700 font-semibold">Log reading</span></div>
-      </motion.button>
-      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-5xl">👨‍⚕️</span><span className="text-xl font-bold text-gray-800">GP Messages</span>
-        <div className="bg-blue-100 px-4 py-2 rounded-full"><span className="text-blue-700 font-semibold">1 new message</span></div>
-      </motion.button>
-      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-5xl">📝</span><span className="text-xl font-bold text-gray-800">How I Feel</span>
-        <div className="bg-green-100 px-4 py-2 rounded-full"><span className="text-green-700 font-semibold">Log symptoms</span></div>
-      </motion.button>
-    </div>
-    <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
+
+    {logMsg && <div className="bg-green-100 border-2 border-green-300 rounded-2xl p-4 mb-4 text-center text-lg text-green-800 font-bold">{logMsg}</div>}
+
+    {tab === 'menu' && (
+      <div className="flex-1 grid grid-cols-2 gap-6 mb-6" style={{ zIndex: 10 }}>
+        <motion.button onClick={() => { setTab('meds'); loadMeds(); }} className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <span className="text-5xl">💊</span><span className="text-xl font-bold text-gray-800">My Medications</span>
+          <span className="text-purple-600 text-sm">View and mark as taken</span>
+        </motion.button>
+        <motion.button onClick={() => setTab('mood')} className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <span className="text-5xl">😊</span><span className="text-xl font-bold text-gray-800">How I Feel</span>
+          <span className="text-green-600 text-sm">Log your mood today</span>
+        </motion.button>
+        <motion.button onClick={() => setTab('pain')} className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-red-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <span className="text-5xl">🩹</span><span className="text-xl font-bold text-gray-800">Pain Check</span>
+          <span className="text-red-600 text-sm">Tell us if anything hurts</span>
+        </motion.button>
+        <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+          <span className="text-5xl">👨‍⚕️</span><span className="text-xl font-bold text-gray-800">GP Messages</span>
+          <span className="text-blue-600 text-sm">Coming soon</span>
+        </motion.button>
+      </div>
+    )}
+
+    {tab === 'meds' && (
+      <div className="flex-1 flex flex-col" style={{ zIndex: 10 }}>
+        {activeMeds > 0 && <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-3 text-center text-purple-700 font-semibold">{activeMeds} active medications{nextDue ? ` · Next due: ${nextDue}` : ''}</div>}
+        <div className="flex-1 overflow-auto space-y-3">
+          {meds.filter(m => m.isActive).map(m => (
+            <div key={m.id} className="bg-white rounded-2xl p-5 shadow border border-gray-100 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center text-3xl">💊</div>
+              <div className="flex-1">
+                <div className="font-bold text-lg text-gray-800">{m.name}</div>
+                <div className="text-gray-500">{m.dosage} · {m.frequency}</div>
+                <div className="flex gap-1 mt-1">{(m.timeOfDay || []).map((t: string) => <span key={t} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-bold">{t}</span>)}</div>
+              </div>
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => markTaken(m.id)} className="px-4 py-3 bg-green-500 text-white rounded-xl font-bold text-sm">✓ Taken</motion.button>
+            </div>
+          ))}
+          {meds.filter(m => m.isActive).length === 0 && <div className="text-center py-10 text-gray-400 text-lg">No medications to show, dear.</div>}
+        </div>
+        <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back</button>
+      </div>
+    )}
+
+    {tab === 'mood' && (
+      <div className="flex-1 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
+        <div className="bg-white rounded-3xl p-8 shadow-xl max-w-md w-full border-2 border-green-200 text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">How are you feeling, {RESIDENT_NAME}?</h2>
+          <p className="text-gray-500 mb-6">Tap the face that matches your mood</p>
+          <div className="flex justify-center gap-3 mb-6">
+            {moods.map(m => (
+              <motion.button key={m.v} whileTap={{ scale: 0.9 }} onClick={() => setMoodVal(m.v)}
+                className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${moodVal === m.v ? 'border-teal-500 bg-teal-50 scale-110' : 'border-gray-200 bg-gray-50'}`}>
+                <span className="text-4xl">{m.e}</span>
+                <span className={`text-xs font-bold mt-1 ${moodVal === m.v ? 'text-teal-700' : 'text-gray-500'}`}>{m.l}</span>
+              </motion.button>
+            ))}
+          </div>
+          <button onClick={logMood} className="w-full py-4 bg-teal-600 text-white rounded-xl font-bold text-xl">Save My Mood</button>
+        </div>
+        <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back</button>
+      </div>
+    )}
+
+    {tab === 'pain' && (
+      <div className="flex-1 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
+        <div className="bg-white rounded-3xl p-8 shadow-xl max-w-md w-full border-2 border-red-200 text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Are you in any pain, dear?</h2>
+          <p className="text-gray-500 mb-4">Slide to show how much</p>
+          <div className="text-6xl mb-2">{painVal === 0 ? '😊' : painVal <= 3 ? '😐' : painVal <= 6 ? '😣' : '😫'}</div>
+          <div className="text-3xl font-bold mb-2" style={{ color: painVal <= 3 ? '#10b981' : painVal <= 6 ? '#f59e0b' : '#ef4444' }}>{painVal}/10</div>
+          <input type="range" min="0" max="10" value={painVal} onChange={e => setPainVal(Number(e.target.value))} className="w-full h-3 mb-4 rounded-lg appearance-none cursor-pointer" style={{ background: `linear-gradient(to right, #10b981 0%, #f59e0b 50%, #ef4444 100%)` }} />
+          <div className="flex justify-between text-sm text-gray-500 mb-6"><span>No pain</span><span>Worst pain</span></div>
+          <button onClick={logPain} className="w-full py-4 bg-red-500 text-white rounded-xl font-bold text-xl">{painVal === 0 ? "I'm Fine, Thank You" : "Report Pain"}</button>
+        </div>
+        <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back</button>
+      </div>
+    )}
+
+    <BottomBar onBack={() => tab === 'menu' ? onNavigate('home') : setTab('menu')} onHome={() => onNavigate('home')} />
   </motion.div>
-);
+  );
+};
 
 // MY DAY SCREEN
 const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
+  const [events, setEvents] = useState<any[]>([]);
+  const [greeting, setGreeting] = useState('');
+  const [dayName, setDayName] = useState('');
+  const [total, setTotal] = useState(0);
+  const userId = localStorage.getItem('wardaUserId') || '';
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch(API_BASE + '/api/calendar/' + userId + '?date=' + new Date().toISOString().split('T')[0])
+      .then(r => r.json()).then(d => {
+        setEvents(d.events || []); setGreeting(d.greeting || ''); setDayName(d.dayName || ''); setTotal(d.total || 0);
+      }).catch(() => {});
+  }, [userId]);
+
   const eventColors: Record<string, string> = { family: 'border-l-green-500 bg-green-50', medical: 'border-l-red-500 bg-red-50', activity: 'border-l-orange-500 bg-orange-50', call: 'border-l-blue-500 bg-blue-50', medication: 'border-l-purple-500 bg-purple-50' };
   const eventIcons: Record<string, string> = { family: '👨‍👩‍👧', medical: '🏥', activity: '🎯', call: '📞', medication: '💊' };
+
   return (
     <motion.div key="myday" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
       className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
@@ -522,19 +781,25 @@ const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
         <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
       </div>
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-4 mb-6" style={{ zIndex: 10 }}>
-        <h2 className="text-2xl font-bold text-amber-800 mb-1">Today - Sunday, 2nd February</h2>
-        <p className="text-amber-600">You have 4 things planned today</p>
+        <h2 className="text-2xl font-bold text-amber-800 mb-1">{greeting}, {RESIDENT_NAME}! — {dayName}</h2>
+        <p className="text-amber-600">{total > 0 ? `You have ${total} thing${total > 1 ? 's' : ''} planned today` : 'No events scheduled today, dear. Enjoy a relaxing day!'}</p>
       </div>
       <div className="flex-1 space-y-4 mb-6 overflow-y-auto" style={{ zIndex: 10 }}>
-        {mockEvents.map((event) => (
-          <motion.div key={event.id} className={`bg-white/90 backdrop-blur-md rounded-2xl p-5 shadow-lg border-l-4 ${eventColors[event.type]}`} whileHover={{ scale: 1.01, x: 4 }}>
+        {events.length > 0 ? events.map((event: any) => (
+          <motion.div key={event.id} className={`bg-white/90 backdrop-blur-md rounded-2xl p-5 shadow-lg border-l-4 ${eventColors[event.type] || 'border-l-gray-300 bg-gray-50'}`} whileHover={{ scale: 1.01, x: 4 }}>
             <div className="flex items-center gap-4">
-              <div className="text-4xl">{eventIcons[event.type]}</div>
-              <div className="flex-1"><div className="text-xl font-bold text-gray-800">{event.title}</div><div className="text-gray-500">at {event.time}</div></div>
+              <div className="text-4xl">{eventIcons[event.type] || '📌'}</div>
+              <div className="flex-1"><div className="text-xl font-bold text-gray-800">{event.title}</div>{event.notes && <div className="text-gray-500 text-sm">{event.notes}</div>}</div>
               <div className="text-2xl font-bold text-gray-400">{event.time}</div>
             </div>
           </motion.div>
-        ))}
+        )) : (
+          <div className="text-center py-16">
+            <div className="text-6xl mb-4">☀️</div>
+            <p className="text-xl text-gray-500">A peaceful day ahead, {RESIDENT_NAME}.</p>
+            <p className="text-gray-400 mt-2">Your care team can add events for you.</p>
+          </div>
+        )}
       </div>
       <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
     </motion.div>
