@@ -1312,7 +1312,7 @@ function App() {
   ];
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #FDF8F3 0%, #F9F5EF 30%, #F4EFE8 60%, #EBE6DE 100%)' }}>
+    <div className="min-h-screen relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 30%, #E0F2FE 70%, #F0FDFA 100%)' }}>
       {/* Connection indicator */}
       <ConnectionDot connected={isConnected} />
 
