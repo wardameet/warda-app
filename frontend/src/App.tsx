@@ -2,6 +2,7 @@ import { useSocket } from './useSocket';
 import MessageOverlay from './MessageOverlay';
 import { useWarda } from './useWarda';
 import React, { useState, useRef, useEffect } from 'react';
+import { io, Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ============ CONFIG ============
@@ -176,7 +177,6 @@ const WardaFace: React.FC<{ onClick: () => void; hasNotification: boolean }> = (
 // ============ SCREEN COMPONENTS ============
 
 // ─── PIN Login Screen ───────────────────────────────────
-import { io, Socket } from 'socket.io-client';
 
 const API_BASE = 'https://api.meetwarda.com/api';
 const CARE_HOME_ID_DEFAULT = '8d02b20b-8fb2-4e78-a77f-f3ba2f37f833';
@@ -572,7 +572,7 @@ const ActivitiesScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp:
             <div className="text-6xl mb-4">{score >= 4 ? '🌟' : score >= 2 ? '👏' : '💪'}</div>
             <h2 className="text-3xl font-bold text-teal-700 mb-2">Quiz Complete!</h2>
             <p className="text-xl text-gray-600 mb-2">You scored {score} out of {questions.length}</p>
-            <p className="text-lg text-teal-600 mb-6">{score >= 4 ? 'Brilliant, dear! You're so clever!' : score >= 2 ? 'Well done, love! Great effort!' : 'Good try, dear! Shall we play again?'}</p>
+            <p className="text-3xl text-lg text-teal-600 mb-6">{score >= 4 ? "Brilliant, dear! You're so clever!" : score >= 2 ? "Well done, love! Great effort!" : "Good try, dear! Shall we play again?"}</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => loadTrivia()} className="px-6 py-3 bg-teal-600 text-white rounded-xl font-bold text-lg">Play Again</button>
               <button onClick={() => setTab('menu')} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold text-lg">Back</button>
@@ -624,7 +624,6 @@ const ActivitiesScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp:
   </motion.div>
   );
 }
-);
 
 // HEALTH SCREEN
 const HealthScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
@@ -1344,7 +1343,7 @@ function App() {
         {currentScreen === 'faith' && <FaithScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'myday' && <MyDayScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
         {currentScreen === 'browse' && <BrowseScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {activeCall && <VideoCallScreen meeting={activeCall.meeting} attendee={activeCall.attendee} callerName={activeCall.callerName} onEnd={() => { setActiveCall(null); setCurrentScreen('home'); fetch(API_BASE.replace('/api','') + '/api/video/end', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({residentId: currentUser?.id}) }); }} onNavigate={setCurrentScreen} />}
+        {activeCall && <VideoCallScreen meeting={activeCall.meeting} attendee={activeCall.attendee} callerName={activeCall.callerName} onEnd={() => { setActiveCall(null); setCurrentScreen('home'); fetch(API_BASE.replace('/api','') + '/api/video/end', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({residentId: residentSession?.id}) }); }} onNavigate={setCurrentScreen} />}
       {medReminder && !activeCall && !incomingCall && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 8500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: 24, padding: 32, maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,0.3)' }}>
@@ -1376,7 +1375,7 @@ function App() {
           <button onClick={(e) => { e.stopPropagation(); setProactiveMsg(null); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: 36, height: 36, color: '#fff', fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
       )}
-      {incomingCall && !activeCall && <IncomingCallOverlay callerName={incomingCall.callerName} onAnswer={() => { setActiveCall(incomingCall); setIncomingCall(null); }} onDecline={() => { setIncomingCall(null); fetch(API_BASE.replace('/api','') + '/api/video/end', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({residentId: currentUser?.id}) }); }} />}
+      {incomingCall && !activeCall && <IncomingCallOverlay callerName={incomingCall.callerName} onAnswer={() => { setActiveCall(incomingCall); setIncomingCall(null); }} onDecline={() => { setIncomingCall(null); fetch(API_BASE.replace('/api','') + '/api/video/end', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({residentId: residentSession?.id}) }); }} />}
       {currentScreen === 'settings' && <SettingsScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
       </AnimatePresence>
     </div>
