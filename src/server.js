@@ -48,6 +48,9 @@ const adminCareHomeRoutes = require('./routes/admin/careHomes');
 const adminResidentRoutes = require('./routes/admin/residents');
 const adminStaffRoutes = require('./routes/admin/staff');
 const adminFamilyRoutes = require('./routes/admin/family');
+const adminOrderRoutes = require('./routes/admin/orders');
+const adminCommissionRoutes = require('./routes/admin/commissions');
+const adminInvoiceRoutes = require('./routes/admin/invoices');
 
 // Import services
 const { initializeRedis } = require('./services/redis');
@@ -107,6 +110,9 @@ app.use('/api/b2c', b2cSignupRoutes);
 // Admin Portal API
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/care-homes', adminCareHomeRoutes);
+app.use('/api/admin/orders', adminOrderRoutes);
+app.use('/api/admin/commissions', adminCommissionRoutes);
+app.use('/api/admin/invoices', adminInvoiceRoutes);
 app.use('/api/admin/residents', adminResidentRoutes);
 app.use('/api/admin/staff', adminStaffRoutes);
 app.use('/api/admin', adminFamilyRoutes);
