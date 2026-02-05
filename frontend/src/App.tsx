@@ -1,18 +1,29 @@
-import { useSocket } from './useSocket';
-import MessageOverlay from './MessageOverlay';
 import { useWarda } from './useWarda';
-import React, { useState, useRef, useEffect } from 'react';
-import { io, Socket } from 'socket.io-client';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
 
-// ============ CONFIG ============
-// Resident config - defaults overridden by PIN login in App()
-let RESIDENT_ID = "";
-let RESIDENT_NAME = "";
-let CARE_HOME_ID = "";
+const API_URL = 'https://api.meetwarda.com/api';
 
 // ============ TYPES ============
-type Screen = 'pin' | 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith' | 'settings' | 'videocall';
+type Screen = 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith' | 'music' | 'games' | 'exercises';
+type AuthScreen = 'setup' | 'login' | 'change-pin' | 'authenticated';
+
+interface Resident {
+  id: string;
+  firstName: string;
+  lastName: string;
+  preferredName?: string;
+  photoUrl?: string;
+  careHomeId: string;
+  careHomeName?: string;
+}
+
+interface CareHome {
+  id: string;
+  name: string;
+  logoUrl?: string;
+}
 
 interface Contact {
   id: string;
@@ -38,14 +49,436 @@ interface Message {
   time: string;
 }
 
+// ============ LOCAL STORAGE HELPERS ============
+const storage = {
+  getActivationCode: () => localStorage.getItem('warda_activation_code'),
+  setActivationCode: (code: string) => localStorage.setItem('warda_activation_code', code),
+  clearActivationCode: () => localStorage.removeItem('warda_activation_code'),
+  getResident: () => {
+    const data = localStorage.getItem('warda_resident');
+    return data ? JSON.parse(data) : null;
+  },
+  setResident: (resident: Resident) => localStorage.setItem('warda_resident', JSON.stringify(resident)),
+  clearResident: () => localStorage.removeItem('warda_resident'),
+  getCareHome: () => {
+    const data = localStorage.getItem('warda_care_home');
+    return data ? JSON.parse(data) : null;
+  },
+  setCareHome: (careHome: CareHome) => localStorage.setItem('warda_care_home', JSON.stringify(careHome)),
+  getToken: () => localStorage.getItem('warda_token'),
+  setToken: (token: string) => localStorage.setItem('warda_token', token),
+  clearAll: () => {
+    localStorage.removeItem('warda_activation_code');
+    localStorage.removeItem('warda_resident');
+    localStorage.removeItem('warda_care_home');
+    localStorage.removeItem('warda_token');
+  }
+};
+
+// ============ DEVICE SETUP SCREEN ============
+const DeviceSetupScreen: React.FC<{ onActivated: (careHome: CareHome) => void }> = ({ onActivated }) => {
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleActivate = async () => {
+    if (!code.trim()) {
+      setError('Please enter an activation code');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await axios.post(`${API_URL}/tablet/activate`, { code: code.trim() });
+      
+      if (response.data.success) {
+        storage.setActivationCode(code.trim().toUpperCase());
+        storage.setCareHome(response.data.careHome);
+        onActivated(response.data.careHome);
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.response?.data?.reason || 'Invalid activation code';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-8"
+      style={{ background: 'linear-gradient(135deg, #E0F2F1 0%, #B2DFDB 50%, #80CBC4 100%)' }}>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-3xl shadow-2xl p-10 max-w-lg w-full text-center">
+        
+        <div className="text-7xl mb-6">🌹</div>
+        <h1 className="text-4xl font-bold text-teal-700 mb-2">Meet Warda</h1>
+        <p className="text-xl text-gray-500 mb-8">Device Setup</p>
+        
+        <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl p-6 mb-6">
+          <p className="text-teal-700 text-lg mb-4">
+            Enter your activation code to connect this tablet to your care home.
+          </p>
+          
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="XXXXX-XXXX-XXXX-XXXX"
+            className="w-full text-center text-2xl font-mono tracking-wider p-4 border-2 border-teal-300 rounded-xl focus:border-teal-500 focus:outline-none"
+            style={{ letterSpacing: '0.1em' }}
+          />
+        </div>
+        
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-red-50 border-2 border-red-200 text-red-700 rounded-xl p-4 mb-6">
+            {error}
+          </motion.div>
+        )}
+        
+        <motion.button
+          onClick={handleActivate}
+          disabled={loading}
+          className="w-full bg-gradient-to-r from-teal-500 to-teal-600 text-white text-2xl font-bold py-5 rounded-2xl shadow-lg"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}>
+          {loading ? '⏳ Activating...' : '✅ Activate Device'}
+        </motion.button>
+        
+        <p className="text-gray-400 text-sm mt-6">
+          Contact your care home manager for an activation code
+        </p>
+      </motion.div>
+    </div>
+  );
+};
+
+// ============ PIN LOGIN SCREEN ============
+const PinLoginScreen: React.FC<{ 
+  careHome: CareHome; 
+  activationCode: string;
+  onLogin: (resident: Resident, requirePinChange: boolean, token: string) => void;
+  onDeviceInvalid: () => void;
+}> = ({ careHome, activationCode, onLogin, onDeviceInvalid }) => {
+  const [pin, setPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handlePinPress = (digit: string) => {
+    if (pin.length < 4) {
+      setPin(prev => prev + digit);
+    }
+  };
+
+  const handleBackspace = () => {
+    setPin(prev => prev.slice(0, -1));
+  };
+
+  const handleLogin = async () => {
+    if (pin.length !== 4) {
+      setError('Please enter your 4-digit PIN');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await axios.post(`${API_URL}/tablet/pin-login`, { 
+        pin, 
+        activationCode 
+      });
+      
+      if (response.data.success) {
+        storage.setToken(response.data.token);
+        storage.setResident(response.data.resident);
+        onLogin(response.data.resident, response.data.requirePinChange, response.data.token);
+      }
+    } catch (err: any) {
+      const errorCode = err.response?.data?.error;
+      
+      if (errorCode === 'DEVICE_SUSPENDED' || errorCode === 'INVALID_CODE' || errorCode?.startsWith('CODE_')) {
+        setError(err.response?.data?.reason || 'Device deactivated. Please contact support.');
+        onDeviceInvalid();
+      } else {
+        setError('Invalid PIN. Please try again.');
+        setPin('');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (pin.length === 4) {
+      handleLogin();
+    }
+  }, [pin]);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-8"
+      style={{ background: 'linear-gradient(135deg, #E0F2F1 0%, #B2DFDB 50%, #80CBC4 100%)' }}>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full text-center">
+        
+        <div className="text-6xl mb-4">🌹</div>
+        <h1 className="text-3xl font-bold text-teal-700 mb-1">{careHome.name}</h1>
+        <p className="text-gray-500 mb-6">Enter your PIN to continue</p>
+        
+        {/* Grayed out activation code */}
+        <div className="bg-gray-100 border border-gray-200 rounded-xl p-3 mb-6">
+          <p className="text-xs text-gray-400 mb-1">Device Code</p>
+          <p className="text-sm font-mono text-gray-500">{activationCode}</p>
+        </div>
+        
+        {/* PIN Display */}
+        <div className="flex justify-center gap-4 mb-6">
+          {[0, 1, 2, 3].map(i => (
+            <div 
+              key={i}
+              className={`w-16 h-20 rounded-xl flex items-center justify-center text-4xl font-bold border-3 ${
+                pin.length > i 
+                  ? 'bg-teal-100 border-teal-400 text-teal-700' 
+                  : 'bg-gray-50 border-gray-200 text-gray-300'
+              }`}>
+              {pin.length > i ? '●' : '○'}
+            </div>
+          ))}
+        </div>
+        
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-red-50 border-2 border-red-200 text-red-700 rounded-xl p-3 mb-4 text-sm">
+            {error}
+          </motion.div>
+        )}
+        
+        {/* Number Pad */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+            <motion.button
+              key={num}
+              onClick={() => handlePinPress(num.toString())}
+              disabled={loading || pin.length >= 4}
+              className="bg-gradient-to-br from-gray-50 to-gray-100 text-3xl font-bold text-gray-700 py-5 rounded-xl border-2 border-gray-200 shadow-sm"
+              whileHover={{ scale: 1.05, backgroundColor: '#E0F2F1' }}
+              whileTap={{ scale: 0.95 }}>
+              {num}
+            </motion.button>
+          ))}
+          <motion.button
+            onClick={() => {/* Forgot PIN */}}
+            className="bg-amber-50 text-amber-600 text-sm font-bold py-5 rounded-xl border-2 border-amber-200"
+            whileTap={{ scale: 0.95 }}>
+            Forgot PIN?
+          </motion.button>
+          <motion.button
+            onClick={() => handlePinPress('0')}
+            disabled={loading || pin.length >= 4}
+            className="bg-gradient-to-br from-gray-50 to-gray-100 text-3xl font-bold text-gray-700 py-5 rounded-xl border-2 border-gray-200 shadow-sm"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}>
+            0
+          </motion.button>
+          <motion.button
+            onClick={handleBackspace}
+            disabled={loading || pin.length === 0}
+            className="bg-red-50 text-red-500 text-2xl font-bold py-5 rounded-xl border-2 border-red-200"
+            whileTap={{ scale: 0.95 }}>
+            ⌫
+          </motion.button>
+        </div>
+        
+        {loading && (
+          <div className="text-teal-600 text-lg">
+            ⏳ Signing in...
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
+// ============ CHANGE PIN SCREEN ============
+const ChangePinScreen: React.FC<{ 
+  resident: Resident; 
+  onPinChanged: () => void;
+}> = ({ resident, onPinChanged }) => {
+  const [step, setStep] = useState<'new' | 'confirm'>('new');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const currentPin = step === 'new' ? newPin : confirmPin;
+  const setCurrentPin = step === 'new' ? setNewPin : setConfirmPin;
+
+  const handlePinPress = (digit: string) => {
+    if (currentPin.length < 4) {
+      setCurrentPin(prev => prev + digit);
+    }
+  };
+
+  const handleBackspace = () => {
+    setCurrentPin(prev => prev.slice(0, -1));
+  };
+
+  useEffect(() => {
+    if (step === 'new' && newPin.length === 4) {
+      setStep('confirm');
+    } else if (step === 'confirm' && confirmPin.length === 4) {
+      handleChangePin();
+    }
+  }, [newPin, confirmPin]);
+
+  const handleChangePin = async () => {
+    if (newPin !== confirmPin) {
+      setError('PINs do not match. Please try again.');
+      setNewPin('');
+      setConfirmPin('');
+      setStep('new');
+      return;
+    }
+    
+    if (newPin === '1234') {
+      setError('Please choose a different PIN');
+      setNewPin('');
+      setConfirmPin('');
+      setStep('new');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      await axios.post(`${API_URL}/tablet/change-pin`, {
+        userId: resident.id,
+        newPin: newPin
+      });
+      onPinChanged();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to change PIN');
+      setNewPin('');
+      setConfirmPin('');
+      setStep('new');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-8"
+      style={{ background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 50%, #FCD34D 100%)' }}>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }} 
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full text-center">
+        
+        <div className="text-6xl mb-4">🔐</div>
+        <h1 className="text-3xl font-bold text-amber-700 mb-2">
+          Welcome, {resident.preferredName || resident.firstName}!
+        </h1>
+        <p className="text-gray-600 mb-6">
+          {step === 'new' 
+            ? 'Please set your personal PIN (4 digits)'
+            : 'Confirm your new PIN'}
+        </p>
+        
+        {/* PIN Display */}
+        <div className="flex justify-center gap-4 mb-6">
+          {[0, 1, 2, 3].map(i => (
+            <div 
+              key={i}
+              className={`w-16 h-20 rounded-xl flex items-center justify-center text-4xl font-bold border-3 ${
+                currentPin.length > i 
+                  ? 'bg-amber-100 border-amber-400 text-amber-700' 
+                  : 'bg-gray-50 border-gray-200 text-gray-300'
+              }`}>
+              {currentPin.length > i ? '●' : '○'}
+            </div>
+          ))}
+        </div>
+        
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-red-50 border-2 border-red-200 text-red-700 rounded-xl p-3 mb-4 text-sm">
+            {error}
+          </motion.div>
+        )}
+        
+        {/* Number Pad */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+            <motion.button
+              key={num}
+              onClick={() => handlePinPress(num.toString())}
+              disabled={loading || currentPin.length >= 4}
+              className="bg-gradient-to-br from-gray-50 to-gray-100 text-3xl font-bold text-gray-700 py-5 rounded-xl border-2 border-gray-200 shadow-sm"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}>
+              {num}
+            </motion.button>
+          ))}
+          <div></div>
+          <motion.button
+            onClick={() => handlePinPress('0')}
+            disabled={loading || currentPin.length >= 4}
+            className="bg-gradient-to-br from-gray-50 to-gray-100 text-3xl font-bold text-gray-700 py-5 rounded-xl border-2 border-gray-200 shadow-sm"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}>
+            0
+          </motion.button>
+          <motion.button
+            onClick={handleBackspace}
+            disabled={loading || currentPin.length === 0}
+            className="bg-red-50 text-red-500 text-2xl font-bold py-5 rounded-xl border-2 border-red-200"
+            whileTap={{ scale: 0.95 }}>
+            ⌫
+          </motion.button>
+        </div>
+        
+        {loading && (
+          <div className="text-amber-600 text-lg">
+            ⏳ Saving...
+          </div>
+        )}
+        
+        <p className="text-gray-400 text-sm">
+          Choose a PIN you'll remember. Don't use 1234.
+        </p>
+      </motion.div>
+    </div>
+  );
+};
+
+
 // ============ MOCK DATA ============
-// Family contacts loaded from API after PIN login
-const mockContacts: Contact[] = [];
+const mockContacts: Contact[] = [
+  { id: '1', name: 'Sarah', relation: 'Daughter', avatar: '👩', online: true, unreadCount: 2, lastMessage: 'The kids loved the park!' },
+  { id: '2', name: 'James', relation: 'Son', avatar: '👨', online: false, unreadCount: 1, lastMessage: 'Call you tomorrow Mum' },
+  { id: '3', name: 'Emma', relation: 'Granddaughter', avatar: '👧', online: true, unreadCount: 0, lastMessage: 'Love you Granny! 💕' },
+  { id: '4', name: 'Oliver', relation: 'Grandson', avatar: '👦', online: false, unreadCount: 0, lastMessage: 'Thanks for the birthday card!' },
+  { id: '5', name: 'Robert', relation: 'Brother', avatar: '👴', online: false, unreadCount: 0, lastMessage: 'See you Sunday' },
+];
 
 const mockEvents: Event[] = [
   { id: '1', title: 'Sarah visiting', time: '14:00', type: 'family' },
   { id: '2', title: 'Afternoon tablets', time: '14:30', type: 'medication' },
   { id: '3', title: 'Chair yoga', time: '15:30', type: 'activity' },
+  { id: '4', title: 'Video call with James', time: '17:00', type: 'call' },
 ];
 
 const mockMessages: Message[] = [
@@ -93,31 +526,12 @@ const LightRay: React.FC<{ left: number; width: number; opacity: number; delay: 
 );
 
 // ============ SHARED COMPONENTS ============
-
-// HELP BUTTON - Now wired to WebSocket!
-const HelpButton: React.FC<{ onPress: () => void; confirmed: boolean }> = ({ onPress, confirmed }) => (
-  <motion.button
-    onClick={onPress}
-    className={`${confirmed ? 'bg-gradient-to-r from-green-500 to-green-600 border-green-400' : 'bg-gradient-to-r from-red-500 to-red-600 border-red-400'} text-white px-8 py-4 rounded-2xl font-bold text-xl flex items-center gap-3 shadow-xl border-2`}
-    style={{ boxShadow: confirmed ? '0 0 30px rgba(34, 197, 94, 0.4)' : '0 0 30px rgba(239, 68, 68, 0.4)', zIndex: 10 }}
+const HelpButton: React.FC = () => (
+  <motion.button className="bg-gradient-to-r from-red-500 to-red-600 text-white px-8 py-4 rounded-2xl font-bold text-xl flex items-center gap-3 shadow-xl border-2 border-red-400"
+    style={{ boxShadow: '0 0 30px rgba(239, 68, 68, 0.4)', zIndex: 10 }}
     whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
-    {confirmed ? '✅ Help is coming!' : '🆘 Help'}
+    🆘 Help
   </motion.button>
-);
-
-// CONNECTION INDICATOR
-const ConnectionDot: React.FC<{ connected: boolean }> = ({ connected }) => (
-  <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 100, display: 'flex', alignItems: 'center', gap: 6 }}>
-    <motion.div
-      animate={connected ? { scale: [1, 1.2, 1] } : { opacity: [1, 0.3, 1] }}
-      transition={{ duration: connected ? 3 : 1, repeat: Infinity }}
-      style={{
-        width: 10, height: 10, borderRadius: '50%',
-        background: connected ? '#22C55E' : '#EF4444',
-        boxShadow: connected ? '0 0 8px rgba(34,197,94,0.5)' : '0 0 8px rgba(239,68,68,0.5)',
-      }}
-    />
-  </div>
 );
 
 const BackButton: React.FC<{ onClick: () => void; disabled?: boolean }> = ({ onClick, disabled }) => (
@@ -176,110 +590,8 @@ const WardaFace: React.FC<{ onClick: () => void; hasNotification: boolean }> = (
 
 // ============ SCREEN COMPONENTS ============
 
-// ─── PIN Login Screen ───────────────────────────────────
-
-const API_BASE = 'https://api.meetwarda.com/api';
-const CARE_HOME_ID_DEFAULT = '8d02b20b-8fb2-4e78-a77f-f3ba2f37f833';
-
-interface ResidentSession {
-  id: string;
-  firstName: string;
-  lastName: string;
-  preferredName: string;
-  roomNumber: string | null;
-  careHomeId: string;
-  careHomeName: string;
-}
-
-const PinLoginScreen: React.FC<{
-  onLogin: (session: ResidentSession) => void;
-}> = ({ onLogin }) => {
-  const [pin, setPin] = React.useState('');
-  const [error, setError] = React.useState('');
-  const [isLoading, setIsLoading] = React.useState(false);
-
-  const handleDigit = (digit: string) => {
-    if (pin.length < 4) {
-      const newPin = pin + digit;
-      setPin(newPin);
-      setError('');
-      if (newPin.length === 4) submitPin(newPin);
-    }
-  };
-  const handleDelete = () => { setPin(prev => prev.slice(0, -1)); setError(''); };
-
-  const submitPin = async (pinCode: string) => {
-    setIsLoading(true); setError('');
-    try {
-      const response = await fetch(`${API_BASE}/auth/pin-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: pinCode, careHomeId: CARE_HOME_ID_DEFAULT })
-      });
-      const data = await response.json();
-      if (data.success && data.resident) { onLogin(data.resident); }
-      else { setPin(''); setError(data.error || 'Wrong PIN. Please try again.'); }
-    } catch (err) { setPin(''); setError('Cannot connect. Please try again.'); }
-    setIsLoading(false);
-  };
-
-  const dots = [0, 1, 2, 3];
-  const keys = [['1','2','3'],['4','5','6'],['7','8','9'],['','0','⌫']];
-
-  return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(180deg, #E8F5F0 0%, #F0FAF7 30%, #F7FCFA 60%, #FFFFFF 100%)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', padding: '20px', fontFamily: "'Segoe UI', system-ui, sans-serif"
-    }}>
-      <div style={{ marginBottom: 12, fontSize: 56 }}>🌹</div>
-      <h1 style={{ fontSize: 38, fontWeight: 700, color: '#1A5C4C', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Warda</h1>
-      <p style={{ fontSize: 16, color: '#5B8A7D', margin: '0 0 32px', fontWeight: 500 }}>You're Never Alone</p>
-      <p style={{ fontSize: 22, color: '#2D6A5A', marginBottom: 24, fontWeight: 600 }}>Enter your PIN to start</p>
-      <div style={{ display: 'flex', gap: 18, marginBottom: 20, height: 36 }}>
-        {dots.map(i => (
-          <div key={i} style={{
-            width: 28, height: 28, borderRadius: '50%',
-            border: `3px solid ${error ? '#DC2626' : '#2D9B83'}`,
-            background: i < pin.length ? (error ? '#DC2626' : '#2D9B83') : 'transparent',
-            transition: 'all 0.2s ease',
-            transform: i < pin.length ? 'scale(1.1)' : 'scale(1)',
-          }} />
-        ))}
-      </div>
-      {error && <p style={{ color: '#DC2626', fontSize: 17, marginBottom: 12, fontWeight: 600, textAlign: 'center' }}>{error}</p>}
-      {isLoading && <p style={{ color: '#2D9B83', fontSize: 17, marginBottom: 12, fontWeight: 600 }}>Signing in...</p>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 340, marginTop: 8 }}>
-        {keys.map((row, ri) => (
-          <div key={ri} style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            {row.map((key, ki) => (
-              <button key={ki}
-                onClick={() => { if (key === '⌫') handleDelete(); else if (key !== '') handleDigit(key); }}
-                disabled={isLoading || (key !== '⌫' && key !== '' && pin.length >= 4)}
-                style={{
-                  width: 90, height: 72, borderRadius: 16,
-                  border: key === '' ? 'none' : '2px solid #D1E8E0',
-                  background: key === '' ? 'transparent' : (key === '⌫' ? '#FEE2E2' : '#FFFFFF'),
-                  fontSize: key === '⌫' ? 28 : 32, fontWeight: 700,
-                  color: key === '⌫' ? '#DC2626' : '#1A5C4C',
-                  cursor: key === '' ? 'default' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: key === '' ? 'none' : '0 2px 8px rgba(0,0,0,0.06)',
-                  transition: 'all 0.15s ease', opacity: isLoading ? 0.5 : 1,
-                }}
-              >{key}</button>
-            ))}
-          </div>
-        ))}
-      </div>
-      <p style={{ marginTop: 32, fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>Ask your carer if you've forgotten your PIN</p>
-    </div>
-  );
-};
-
 // HOME SCREEN
-const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, time, onHelp, helpConfirmed }) => (
+const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string; residentName?: string }> = ({ onNavigate, time, residentName = "Friend" }) => (
   <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
@@ -292,17 +604,17 @@ const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string;
           <span className="text-lg font-semibold text-gray-700">12°C</span>
         </div>
       </div>
-      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+      <HelpButton />
     </div>
     <div className="flex-1 flex flex-col items-center justify-center gap-8">
       <WardaFace onClick={() => onNavigate('talk')} hasNotification={true} />
       <div className="text-center" style={{ zIndex: 10 }}>
         <motion.h1 className="text-5xl font-bold text-teal-700 mb-3" style={{ fontFamily: 'Georgia, serif' }}
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          Good afternoon, {RESIDENT_NAME}!
+          Good afternoon, {residentName}!
         </motion.h1>
         <motion.p className="text-xl text-gray-600" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          Tap me to chat!
+          Sarah sent you a photo. Tap me to chat!
         </motion.p>
       </div>
     </div>
@@ -315,27 +627,26 @@ const HomeScreen: React.FC<{ onNavigate: (screen: Screen) => void; time: string;
       <NavCard icon="❤️" label="My Health" onClick={() => onNavigate('health')} />
       <NavCard icon="📅" label="My Day" onClick={() => onNavigate('myday')} />
       <NavCard icon="🌐" label="Browse Web" onClick={() => onNavigate('browse')} />
-      <NavCard icon="⚙️" label="Settings" onClick={() => onNavigate('settings')} />
     </motion.div>
     <BottomBar onBack={() => {}} onHome={() => {}} backDisabled homeDisabled />
   </motion.div>
 );
 
 // TALK SCREEN
-const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
+const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void; residentName?: string; residentId?: string }> = ({ onNavigate, residentName = "Friend", residentId = "guest" }) => {
   const [mode, setMode] = useState<"voice" | "type">("type");
   const [inputText, setInputText] = useState("");
-  const { messages, sendMessage, isLoading } = useWarda("margaret123", "Margaret");
+  const { messages, sendMessage, isLoading } = useWarda(residentId, residentName);
   const handleSend = () => { if (inputText.trim() && !isLoading) { sendMessage(inputText.trim()); setInputText(""); } };
   return (
     <motion.div key="talk" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-teal-700">Talk to Warda</h1>
-        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+        <HelpButton />
       </div>
       <div className="flex-1 bg-white/80 backdrop-blur-md rounded-3xl p-6 mb-6 border-2 border-white/50 shadow-xl overflow-y-auto" style={{ zIndex: 10 }}>
         <div className="space-y-4">
-          {messages.length === 0 && <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5"><p className="text-lg text-gray-700">Hello Margaret! Type a message below to talk to me. 😊</p></div>}
+          {messages.length === 0 && <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5"><p className="text-lg text-gray-700">Hello {residentName}! Type a message below to talk to me. 😊</p></div>}
           {messages.map((msg) => (
             <div key={msg.id} className={msg.from === "user" ? "flex justify-end" : "flex justify-start"}>
               <div className={msg.from === "user" ? "bg-teal-500 text-white rounded-2xl p-4 max-w-2xl" : "bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 max-w-2xl"}>
@@ -355,24 +666,16 @@ const TalkScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =>
     </motion.div>
   );
 };
-
 // FAMILY SCREEN
-const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectContact: (contact: Contact) => void; onHelp: () => void; helpConfirmed: boolean; contacts: Contact[] }> = ({ onNavigate, onSelectContact, onHelp, helpConfirmed, contacts }) => (
+const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectContact: (contact: Contact) => void }> = ({ onNavigate, onSelectContact }) => (
   <motion.div key="family" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>👨‍👩‍👧 Family</h1>
-      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+      <HelpButton />
     </div>
     <div className="flex-1 grid grid-cols-3 gap-6 mb-6 overflow-y-auto" style={{ zIndex: 10 }}>
-      {contacts.length === 0 ? (
-          <div className="col-span-3 flex flex-col items-center justify-center py-20">
-            <div className="text-6xl mb-4">👨‍👩‍👧</div>
-            <p className="text-xl text-gray-500">No family contacts yet</p>
-            <p className="text-gray-400 mt-2">Ask your care team to add your family</p>
-          </div>
-        ) : null}
-        {contacts.map((contact) => (
+      {mockContacts.map((contact) => (
         <motion.button key={contact.id} onClick={() => onSelectContact(contact)}
           className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-white/50 hover:border-teal-300 transition-all"
           whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
@@ -404,7 +707,7 @@ const FamilyScreen: React.FC<{ onNavigate: (screen: Screen) => void; onSelectCon
 );
 
 // CONTACT DETAIL SCREEN
-const ContactScreen: React.FC<{ contact: Contact; onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ contact, onNavigate, onHelp, helpConfirmed }) => (
+const ContactScreen: React.FC<{ contact: Contact; onNavigate: (screen: Screen) => void }> = ({ contact, onNavigate }) => (
   <motion.div key="contact" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
@@ -417,7 +720,7 @@ const ContactScreen: React.FC<{ contact: Contact; onNavigate: (screen: Screen) =
           <p className="text-gray-500">{contact.relation}</p>
         </div>
       </div>
-      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+      <HelpButton />
     </div>
     <div className="flex gap-4 mb-6" style={{ zIndex: 10 }}>
       <motion.button className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-lg"
@@ -451,354 +754,397 @@ const ContactScreen: React.FC<{ contact: Contact; onNavigate: (screen: Screen) =
 );
 
 // ACTIVITIES SCREEN
-const ActivitiesScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
-  const [tab, setTab] = useState<'menu'|'music'|'trivia'|'exercises'>('menu');
-  const [tracks, setTracks] = useState<any[]>([]);
-  const [genre, setGenre] = useState('');
-  const [genres, setGenres] = useState<string[]>([]);
-  const [questions, setQuestions] = useState<any[]>([]);
-  const [qIdx, setQIdx] = useState(0);
-  const [score, setScore] = useState(0);
-  const [answered, setAnswered] = useState<number|null>(null);
-  const [feedback, setFeedback] = useState('');
-  const [exercises, setExercises] = useState<any[]>([]);
-  const [activeExercise, setActiveExercise] = useState<any>(null);
-  const [quizDone, setQuizDone] = useState(false);
-
-  const loadMusic = async (g?: string) => {
-    const params = g ? `?genre=${g}` : '';
-    const r = await fetch(API_BASE + '/api/activities/music' + params);
-    const d = await r.json();
-    setTracks(d.tracks || []); setGenres(d.genres || []);
-  };
-  const loadTrivia = async () => {
-    const r = await fetch(API_BASE + '/api/activities/trivia?count=5');
-    const d = await r.json();
-    setQuestions(d.questions || []); setQIdx(0); setScore(0); setAnswered(null); setFeedback(''); setQuizDone(false);
-  };
-  const loadExercises = async () => {
-    const r = await fetch(API_BASE + '/api/activities/exercises');
-    const d = await r.json();
-    setExercises(d.exercises || []);
-  };
-
-  const checkAnswer = async (idx: number) => {
-    if (answered !== null) return;
-    setAnswered(idx);
-    const q = questions[qIdx];
-    const r = await fetch(API_BASE + '/api/activities/trivia/check', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ question: q.q, selected: idx }) });
-    const d = await r.json();
-    setFeedback(d.message);
-    if (d.correct) setScore(s => s + 1);
-    setTimeout(() => {
-      if (qIdx + 1 < questions.length) { setQIdx(i => i + 1); setAnswered(null); setFeedback(''); }
-      else { setQuizDone(true); }
-    }, 2000);
-  };
-
-  return (
+const ActivitiesScreen: React.FC<{ onNavigate: (screen: Screen) => void; residentName?: string }> = ({ onNavigate, residentName = "Friend" }) => (
   <motion.div key="activities" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
-    <div className="flex justify-between items-center mb-4">
+    <div className="flex justify-between items-center mb-6">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🎯 Activities</h1>
-      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+      <HelpButton />
     </div>
-
-    {tab === 'menu' && (
-      <>
-        <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-2xl p-4 mb-4 flex items-center gap-4" style={{ zIndex: 10 }}>
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-2xl">😊</div>
-          <p className="text-lg text-teal-800">What would you like to do, {RESIDENT_NAME}?</p>
-        </div>
-        <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
-          <motion.button onClick={() => { setTab('music'); loadMusic(); }} className="bg-gradient-to-br from-purple-100 to-purple-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-300"
-            whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-            <span className="text-6xl">🎵</span><span className="text-2xl font-bold text-purple-800">Music</span><span className="text-purple-600">Songs & relaxation</span>
-          </motion.button>
-          <motion.button onClick={() => { setTab('trivia'); loadTrivia(); }} className="bg-gradient-to-br from-orange-100 to-orange-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-orange-300"
-            whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-            <span className="text-6xl">🧠</span><span className="text-2xl font-bold text-orange-800">Trivia Quiz</span><span className="text-orange-600">Test your knowledge</span>
-          </motion.button>
-          <motion.button onClick={() => { setTab('exercises'); loadExercises(); }} className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-300"
-            whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-            <span className="text-6xl">🧘</span><span className="text-2xl font-bold text-green-800">Exercises</span><span className="text-green-600">Gentle stretches</span>
-          </motion.button>
-        </div>
-      </>
-    )}
-
-    {tab === 'music' && (
-      <div className="flex-1 flex flex-col" style={{ zIndex: 10 }}>
-        <div className="flex gap-2 mb-4 flex-wrap">
-          <button onClick={() => { setGenre(''); loadMusic(); }} className={`px-4 py-2 rounded-full text-sm font-bold ${!genre ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>All</button>
-          {genres.map(g => <button key={g} onClick={() => { setGenre(g); loadMusic(g); }} className={`px-4 py-2 rounded-full text-sm font-bold ${genre === g ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{g}</button>)}
-        </div>
-        <div className="flex-1 overflow-auto space-y-2">
-          {tracks.map(t => (
-            <motion.div key={t.id} whileHover={{ scale: 1.01 }} className="bg-white rounded-2xl p-4 flex items-center gap-4 shadow border border-gray-100 cursor-pointer">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-2xl">🎵</div>
-              <div className="flex-1">
-                <div className="font-bold text-lg text-gray-800">{t.title}</div>
-                <div className="text-gray-500">{t.artist} · {t.genre} · {t.duration}</div>
-              </div>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">{t.mood}</span>
-            </motion.div>
-          ))}
-        </div>
-        <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back to Activities</button>
-      </div>
-    )}
-
-    {tab === 'trivia' && (
-      <div className="flex-1 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
-        {!quizDone && questions.length > 0 && (
-          <>
-            <div className="text-center mb-2"><span className="text-sm text-gray-500">Question {qIdx + 1} of {questions.length}</span> · <span className="font-bold text-teal-700">Score: {score}</span></div>
-            <div className="bg-white rounded-3xl p-8 shadow-xl max-w-xl w-full border-2 border-teal-200">
-              <div className="text-xs text-teal-600 font-bold mb-2">{questions[qIdx].category}</div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">{questions[qIdx].q}</h2>
-              <div className="grid grid-cols-2 gap-3">
-                {questions[qIdx].options.map((opt: string, i: number) => (
-                  <motion.button key={i} whileTap={{ scale: 0.95 }} onClick={() => checkAnswer(i)}
-                    className={`p-4 rounded-xl text-lg font-bold border-2 transition-all ${answered === null ? 'bg-gray-50 border-gray-200 hover:bg-teal-50 hover:border-teal-300' : i === questions[qIdx].answer ? 'bg-green-100 border-green-400 text-green-800' : answered === i ? 'bg-red-100 border-red-400 text-red-800' : 'bg-gray-50 border-gray-200 opacity-50'}`}>{opt}</motion.button>
-                ))}
-              </div>
-              {feedback && <div className={`mt-4 text-center text-lg font-bold ${feedback.includes('Well done') ? 'text-green-600' : 'text-orange-600'}`}>{feedback}</div>}
-            </div>
-          </>
-        )}
-        {quizDone && (
-          <div className="bg-white rounded-3xl p-8 shadow-xl text-center max-w-md border-2 border-teal-200">
-            <div className="text-6xl mb-4">{score >= 4 ? '🌟' : score >= 2 ? '👏' : '💪'}</div>
-            <h2 className="text-3xl font-bold text-teal-700 mb-2">Quiz Complete!</h2>
-            <p className="text-xl text-gray-600 mb-2">You scored {score} out of {questions.length}</p>
-            <p className="text-3xl text-lg text-teal-600 mb-6">{score >= 4 ? "Brilliant, dear! You're so clever!" : score >= 2 ? "Well done, love! Great effort!" : "Good try, dear! Shall we play again?"}</p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={() => loadTrivia()} className="px-6 py-3 bg-teal-600 text-white rounded-xl font-bold text-lg">Play Again</button>
-              <button onClick={() => setTab('menu')} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-bold text-lg">Back</button>
-            </div>
-          </div>
-        )}
-        {!quizDone && <button onClick={() => setTab('menu')} className="mt-6 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back</button>}
-      </div>
-    )}
-
-    {tab === 'exercises' && (
-      <div className="flex-1" style={{ zIndex: 10 }}>
-        {!activeExercise ? (
-          <div className="grid grid-cols-2 gap-4">
-            {exercises.map(ex => (
-              <motion.button key={ex.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setActiveExercise(ex)}
-                className="bg-white rounded-2xl p-5 text-left shadow border border-gray-100">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-3xl">🧘</span>
-                  <div><div className="font-bold text-lg text-gray-800">{ex.name}</div><div className="text-sm text-gray-500">{ex.duration} · {ex.level}</div></div>
-                </div>
-                <p className="text-sm text-teal-700">{ex.benefit}</p>
-              </motion.button>
-            ))}
-          </div>
-        ) : (
-          <div className="max-w-lg mx-auto bg-white rounded-3xl p-8 shadow-xl border-2 border-green-200">
-            <h2 className="text-2xl font-bold text-green-700 mb-1">{activeExercise.name}</h2>
-            <div className="text-sm text-gray-500 mb-4">{activeExercise.duration} · {activeExercise.equipment} · {activeExercise.level}</div>
-            <div className="bg-green-50 rounded-xl p-4 mb-4">
-              <p className="text-green-800 font-medium">{activeExercise.benefit}</p>
-            </div>
-            <ol className="space-y-3">
-              {activeExercise.steps.map((step: string, i: number) => (
-                <li key={i} className="flex gap-3 items-start">
-                  <span className="w-8 h-8 bg-green-200 rounded-full flex items-center justify-center text-green-800 font-bold flex-shrink-0">{i+1}</span>
-                  <span className="text-lg text-gray-700 pt-1">{step}</span>
-                </li>
-              ))}
-            </ol>
-            <button onClick={() => setActiveExercise(null)} className="mt-6 w-full py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back to Exercises</button>
-          </div>
-        )}
-        {!activeExercise && <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back to Activities</button>}
-      </div>
-    )}
-
-    <BottomBar onBack={() => tab === 'menu' ? onNavigate('home') : setTab('menu')} onHome={() => onNavigate('home')} />
+    <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-2xl p-4 mb-6 flex items-center gap-4" style={{ zIndex: 10 }}>
+      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-2xl">😊</div>
+      <p className="text-lg text-teal-800">It's a lovely afternoon, {residentName}. How about some gentle stretches or your favourite music?</p>
+    </div>
+    <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
+      <motion.button onClick={() => onNavigate('music')} className="bg-gradient-to-br from-purple-100 to-purple-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-300"
+        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">🎵</span>
+        <span className="text-2xl font-bold text-purple-800">Music</span>
+        <span className="text-purple-600">Songs, radio, decades</span>
+      </motion.button>
+      <motion.button onClick={() => onNavigate('games')} className="bg-gradient-to-br from-orange-100 to-orange-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-orange-300"
+        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">🧩</span>
+        <span className="text-2xl font-bold text-orange-800">Games</span>
+        <span className="text-orange-600">Puzzles, trivia, memory</span>
+      </motion.button>
+      <motion.button onClick={() => onNavigate('exercises')} className="bg-gradient-to-br from-green-100 to-green-200 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-300"
+        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">🧘</span>
+        <span className="text-2xl font-bold text-green-800">Exercises</span>
+        <span className="text-green-600">Chair yoga, stretches</span>
+      </motion.button>
+    </div>
+    <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
   </motion.div>
-  );
-}
+);
 
-// HEALTH SCREEN
-const HealthScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
-  const [tab, setTab] = useState<'menu'|'meds'|'mood'|'pain'>('menu');
-  const [meds, setMeds] = useState<any[]>([]);
-  const [activeMeds, setActiveMeds] = useState(0);
-  const [nextDue, setNextDue] = useState('');
-  const [moodVal, setMoodVal] = useState(3);
-  const [painVal, setPainVal] = useState(0);
-  const [logMsg, setLogMsg] = useState('');
-  const userId = localStorage.getItem('wardaUserId') || '';
 
-  const loadMeds = async () => {
-    if (!userId) return;
-    try { const r = await fetch(API_BASE + '/api/medications/' + userId); const d = await r.json(); setMeds(d.medications || []); setActiveMeds(d.activeCount || 0); setNextDue(d.nextDue || ''); } catch {}
-  };
-
-  const markTaken = async (medId: string) => {
-    try { await fetch(API_BASE + '/api/medications/' + medId + '/taken', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ recordedBy: 'resident' }) }); loadMeds(); } catch {}
-  };
-
-  const logMood = async () => {
-    if (!userId) return;
-    try { await fetch(API_BASE + '/api/health-logs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ userId, type: 'MOOD', value: String(moodVal), notes: 'Self-reported from tablet', recordedBy: 'resident' }) });
-      setLogMsg('Thank you, dear. Your mood has been recorded. 💚'); setTimeout(() => { setLogMsg(''); setTab('menu'); }, 2500);
-    } catch {}
-  };
-
-  const logPain = async () => {
-    if (!userId) return;
-    try { await fetch(API_BASE + '/api/health-logs', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ userId, type: 'PAIN', value: String(painVal), notes: 'Self-reported from tablet', recordedBy: 'resident' }) });
-      setLogMsg('Thank you. Your care team has been notified. 💚'); setTimeout(() => { setLogMsg(''); setTab('menu'); }, 2500);
-    } catch {}
-  };
-
-  const moods = [{v:1,e:'😢',l:'Very Low'},{v:2,e:'😕',l:'Low'},{v:3,e:'😐',l:'Okay'},{v:4,e:'🙂',l:'Good'},{v:5,e:'😊',l:'Great'}];
+// ============ MUSIC SCREEN ============
+const MusicScreen: React.FC<{ onNavigate: (screen: Screen) => void; residentName?: string }> = ({ onNavigate, residentName = "Friend" }) => {
+  const [currentTrack, setCurrentTrack] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<any>(null);
+  
+  const playlists = [
+    { id: 1, name: "Golden Oldies", icon: "🎷", color: "from-amber-100 to-amber-200", border: "border-amber-300", tracks: ["Frank Sinatra - My Way", "Nat King Cole - Unforgettable", "Dean Martin - That's Amore"] },
+    { id: 2, name: "Classical Calm", icon: "🎻", color: "from-blue-100 to-blue-200", border: "border-blue-300", tracks: ["Mozart - Eine kleine Nachtmusik", "Beethoven - Moonlight Sonata", "Bach - Air on G String"] },
+    { id: 3, name: "Scottish Folk", icon: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", color: "from-purple-100 to-purple-200", border: "border-purple-300", tracks: ["Loch Lomond", "Flower of Scotland", "Auld Lang Syne"] },
+    { id: 4, name: "Hymns & Faith", icon: "⛪", color: "from-green-100 to-green-200", border: "border-green-300", tracks: ["Amazing Grace", "How Great Thou Art", "Be Still My Soul"] },
+    { id: 5, name: "Relaxing Nature", icon: "🌿", color: "from-teal-100 to-teal-200", border: "border-teal-300", tracks: ["Rainfall", "Ocean Waves", "Forest Birds"] },
+    { id: 6, name: "Big Band Era", icon: "🎺", color: "from-red-100 to-red-200", border: "border-red-300", tracks: ["Glenn Miller - In The Mood", "Benny Goodman - Sing Sing Sing", "Duke Ellington - Take the A Train"] },
+  ];
 
   return (
-  <motion.div key="health" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
-    className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
-    <div className="flex justify-between items-center mb-4">
-      <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>❤️ My Health</h1>
-      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
-    </div>
-
-    {logMsg && <div className="bg-green-100 border-2 border-green-300 rounded-2xl p-4 mb-4 text-center text-lg text-green-800 font-bold">{logMsg}</div>}
-
-    {tab === 'menu' && (
-      <div className="flex-1 grid grid-cols-2 gap-6 mb-6" style={{ zIndex: 10 }}>
-        <motion.button onClick={() => { setTab('meds'); loadMeds(); }} className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <span className="text-5xl">💊</span><span className="text-xl font-bold text-gray-800">My Medications</span>
-          <span className="text-purple-600 text-sm">View and mark as taken</span>
-        </motion.button>
-        <motion.button onClick={() => setTab('mood')} className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <span className="text-5xl">😊</span><span className="text-xl font-bold text-gray-800">How I Feel</span>
-          <span className="text-green-600 text-sm">Log your mood today</span>
-        </motion.button>
-        <motion.button onClick={() => setTab('pain')} className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-red-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <span className="text-5xl">🩹</span><span className="text-xl font-bold text-gray-800">Pain Check</span>
-          <span className="text-red-600 text-sm">Tell us if anything hurts</span>
-        </motion.button>
-        <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <span className="text-5xl">👨‍⚕️</span><span className="text-xl font-bold text-gray-800">GP Messages</span>
-          <span className="text-blue-600 text-sm">Coming soon</span>
-        </motion.button>
+    <motion.div key="music" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🎵 Music</h1>
+        <HelpButton />
       </div>
-    )}
-
-    {tab === 'meds' && (
-      <div className="flex-1 flex flex-col" style={{ zIndex: 10 }}>
-        {activeMeds > 0 && <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-3 text-center text-purple-700 font-semibold">{activeMeds} active medications{nextDue ? ` · Next due: ${nextDue}` : ''}</div>}
-        <div className="flex-1 overflow-auto space-y-3">
-          {meds.filter(m => m.isActive).map(m => (
-            <div key={m.id} className="bg-white rounded-2xl p-5 shadow border border-gray-100 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center text-3xl">💊</div>
-              <div className="flex-1">
-                <div className="font-bold text-lg text-gray-800">{m.name}</div>
-                <div className="text-gray-500">{m.dosage} · {m.frequency}</div>
-                <div className="flex gap-1 mt-1">{(m.timeOfDay || []).map((t: string) => <span key={t} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-bold">{t}</span>)}</div>
-              </div>
-              <motion.button whileTap={{ scale: 0.9 }} onClick={() => markTaken(m.id)} className="px-4 py-3 bg-green-500 text-white rounded-xl font-bold text-sm">✓ Taken</motion.button>
-            </div>
-          ))}
-          {meds.filter(m => m.isActive).length === 0 && <div className="text-center py-10 text-gray-400 text-lg">No medications to show, dear.</div>}
-        </div>
-        <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back</button>
-      </div>
-    )}
-
-    {tab === 'mood' && (
-      <div className="flex-1 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
-        <div className="bg-white rounded-3xl p-8 shadow-xl max-w-md w-full border-2 border-green-200 text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">How are you feeling, {RESIDENT_NAME}?</h2>
-          <p className="text-gray-500 mb-6">Tap the face that matches your mood</p>
-          <div className="flex justify-center gap-3 mb-6">
-            {moods.map(m => (
-              <motion.button key={m.v} whileTap={{ scale: 0.9 }} onClick={() => setMoodVal(m.v)}
-                className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${moodVal === m.v ? 'border-teal-500 bg-teal-50 scale-110' : 'border-gray-200 bg-gray-50'}`}>
-                <span className="text-4xl">{m.e}</span>
-                <span className={`text-xs font-bold mt-1 ${moodVal === m.v ? 'text-teal-700' : 'text-gray-500'}`}>{m.l}</span>
+      {!selectedPlaylist ? (
+        <>
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4 mb-6 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-2xl">🎵</div>
+            <p className="text-lg text-purple-800">Pick a playlist that suits your mood, {residentName}. Music is good for the soul!</p>
+          </div>
+          <div className="flex-1 grid grid-cols-3 gap-4 mb-6" style={{ zIndex: 10 }}>
+            {playlists.map((playlist) => (
+              <motion.button key={playlist.id} onClick={() => setSelectedPlaylist(playlist)} className={`bg-gradient-to-br ${playlist.color} rounded-2xl p-6 flex flex-col items-center gap-3 shadow-lg border-2 ${playlist.border}`} whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+                <span className="text-5xl">{playlist.icon}</span>
+                <span className="text-xl font-bold text-gray-800">{playlist.name}</span>
+                <span className="text-sm text-gray-600">{playlist.tracks.length} songs</span>
               </motion.button>
             ))}
           </div>
-          <button onClick={logMood} className="w-full py-4 bg-teal-600 text-white rounded-xl font-bold text-xl">Save My Mood</button>
-        </div>
-        <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back</button>
-      </div>
-    )}
-
-    {tab === 'pain' && (
-      <div className="flex-1 flex flex-col items-center justify-center" style={{ zIndex: 10 }}>
-        <div className="bg-white rounded-3xl p-8 shadow-xl max-w-md w-full border-2 border-red-200 text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Are you in any pain, dear?</h2>
-          <p className="text-gray-500 mb-4">Slide to show how much</p>
-          <div className="text-6xl mb-2">{painVal === 0 ? '😊' : painVal <= 3 ? '😐' : painVal <= 6 ? '😣' : '😫'}</div>
-          <div className="text-3xl font-bold mb-2" style={{ color: painVal <= 3 ? '#10b981' : painVal <= 6 ? '#f59e0b' : '#ef4444' }}>{painVal}/10</div>
-          <input type="range" min="0" max="10" value={painVal} onChange={e => setPainVal(Number(e.target.value))} className="w-full h-3 mb-4 rounded-lg appearance-none cursor-pointer" style={{ background: `linear-gradient(to right, #10b981 0%, #f59e0b 50%, #ef4444 100%)` }} />
-          <div className="flex justify-between text-sm text-gray-500 mb-6"><span>No pain</span><span>Worst pain</span></div>
-          <button onClick={logPain} className="w-full py-4 bg-red-500 text-white rounded-xl font-bold text-xl">{painVal === 0 ? "I'm Fine, Thank You" : "Report Pain"}</button>
-        </div>
-        <button onClick={() => setTab('menu')} className="mt-4 px-6 py-3 bg-gray-200 rounded-xl text-lg font-bold text-gray-700">← Back</button>
-      </div>
-    )}
-
-    <BottomBar onBack={() => tab === 'menu' ? onNavigate('home') : setTab('menu')} onHome={() => onNavigate('home')} />
-  </motion.div>
+        </>
+      ) : (
+        <>
+          <motion.button onClick={() => { setSelectedPlaylist(null); setCurrentTrack(null); setIsPlaying(false); }} className="mb-4 flex items-center gap-2 text-teal-600 text-xl" whileHover={{ x: -5 }}>← Back to Playlists</motion.button>
+          <div className={`bg-gradient-to-br ${selectedPlaylist.color} rounded-2xl p-6 mb-6 border-2 ${selectedPlaylist.border}`}>
+            <div className="flex items-center gap-4 mb-4">
+              <span className="text-6xl">{selectedPlaylist.icon}</span>
+              <div><h2 className="text-2xl font-bold text-gray-800">{selectedPlaylist.name}</h2><p className="text-gray-600">{selectedPlaylist.tracks.length} songs</p></div>
+            </div>
+            <div className="space-y-3">
+              {selectedPlaylist.tracks.map((track: string, index: number) => (
+                <motion.button key={index} onClick={() => { setCurrentTrack(index); setIsPlaying(true); }} className={`w-full p-4 rounded-xl flex items-center gap-4 ${currentTrack === index ? 'bg-white shadow-lg' : 'bg-white/50 hover:bg-white/80'}`} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl ${currentTrack === index && isPlaying ? 'bg-green-500 text-white' : 'bg-gray-200'}`}>{currentTrack === index && isPlaying ? '⏸' : '▶'}</div>
+                  <span className="text-lg font-medium text-gray-800">{track}</span>
+                </motion.button>
+              ))}
+            </div>
+          </div>
+          {currentTrack !== null && (
+            <div className="bg-white rounded-2xl p-4 shadow-lg border-2 border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-4"><span className="text-4xl">{selectedPlaylist.icon}</span><div><p className="font-bold text-gray-800">{selectedPlaylist.tracks[currentTrack]}</p><p className="text-sm text-gray-500">{selectedPlaylist.name}</p></div></div>
+              <div className="flex items-center gap-4">
+                <motion.button className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center text-2xl" whileTap={{ scale: 0.9 }}>⏮</motion.button>
+                <motion.button onClick={() => setIsPlaying(!isPlaying)} className="w-16 h-16 rounded-full bg-teal-500 text-white flex items-center justify-center text-3xl shadow-lg" whileTap={{ scale: 0.9 }}>{isPlaying ? '⏸' : '▶'}</motion.button>
+                <motion.button className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center text-2xl" whileTap={{ scale: 0.9 }}>⏭</motion.button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+      <BottomBar onBack={() => onNavigate('activities')} onHome={() => onNavigate('home')} />
+    </motion.div>
   );
 };
 
+// ============ GAMES SCREEN ============
+const GamesScreen: React.FC<{ onNavigate: (screen: Screen) => void; residentName?: string }> = ({ onNavigate, residentName = "Friend" }) => {
+  const [selectedGame, setSelectedGame] = useState<string | null>(null);
+  const [memoryCards, setMemoryCards] = useState<{id: number, emoji: string, flipped: boolean, matched: boolean}[]>([]);
+  const [flippedCards, setFlippedCards] = useState<number[]>([]);
+  const [moves, setMoves] = useState(0);
+  const [triviaQuestion, setTriviaQuestion] = useState(0);
+  const [triviaScore, setTriviaScore] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  
+  const games = [
+    { id: 'memory', name: "Memory Match", icon: "🧠", color: "from-pink-100 to-pink-200", border: "border-pink-300", desc: "Match the pairs" },
+    { id: 'trivia', name: "Trivia Quiz", icon: "❓", color: "from-blue-100 to-blue-200", border: "border-blue-300", desc: "Test your knowledge" },
+  ];
+  
+  const triviaQuestions = [
+    { q: "What year did World War II end?", options: ["1943", "1945", "1947", "1950"], correct: 1 },
+    { q: "Which Scottish city is known as the Granite City?", options: ["Edinburgh", "Glasgow", "Aberdeen", "Dundee"], correct: 2 },
+    { q: "What is the capital of France?", options: ["London", "Berlin", "Madrid", "Paris"], correct: 3 },
+    { q: "Who painted the Mona Lisa?", options: ["Van Gogh", "Picasso", "Da Vinci", "Monet"], correct: 2 },
+    { q: "What is the longest river in the world?", options: ["Amazon", "Nile", "Mississippi", "Thames"], correct: 1 },
+  ];
+  
+  const initMemoryGame = () => {
+    const emojis = ['🌸', '🌺', '🌻', '🌷', '🌹', '🌼'];
+    const cards = [...emojis, ...emojis].sort(() => Math.random() - 0.5).map((emoji, index) => ({ id: index, emoji, flipped: false, matched: false }));
+    setMemoryCards(cards); setFlippedCards([]); setMoves(0);
+  };
+  
+  const handleCardClick = (id: number) => {
+    if (flippedCards.length === 2 || memoryCards[id].flipped || memoryCards[id].matched) return;
+    const newCards = [...memoryCards]; newCards[id].flipped = true; setMemoryCards(newCards);
+    const newFlipped = [...flippedCards, id]; setFlippedCards(newFlipped);
+    if (newFlipped.length === 2) {
+      setMoves(m => m + 1);
+      const [first, second] = newFlipped;
+      if (newCards[first].emoji === newCards[second].emoji) { newCards[first].matched = true; newCards[second].matched = true; setMemoryCards(newCards); setFlippedCards([]); }
+      else { setTimeout(() => { newCards[first].flipped = false; newCards[second].flipped = false; setMemoryCards([...newCards]); setFlippedCards([]); }, 1000); }
+    }
+  };
+  
+  const handleTriviaAnswer = (answerIndex: number) => {
+    setSelectedAnswer(answerIndex);
+    if (answerIndex === triviaQuestions[triviaQuestion].correct) setTriviaScore(s => s + 1);
+    setTimeout(() => { if (triviaQuestion < triviaQuestions.length - 1) { setTriviaQuestion(q => q + 1); setSelectedAnswer(null); } }, 1500);
+  };
+
+  return (
+    <motion.div key="games" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🧩 Games</h1>
+        <HelpButton />
+      </div>
+      {!selectedGame ? (
+        <>
+          <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-200 rounded-2xl p-4 mb-6 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-2xl">🎮</div>
+            <p className="text-lg text-orange-800">Ready for some fun, {residentName}? Games keep the mind sharp!</p>
+          </div>
+          <div className="flex-1 grid grid-cols-2 gap-6 mb-6" style={{ zIndex: 10 }}>
+            {games.map((game) => (
+              <motion.button key={game.id} onClick={() => { setSelectedGame(game.id); if (game.id === 'memory') initMemoryGame(); }} className={`bg-gradient-to-br ${game.color} rounded-2xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 ${game.border}`} whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+                <span className="text-6xl">{game.icon}</span>
+                <span className="text-2xl font-bold text-gray-800">{game.name}</span>
+                <span className="text-gray-600">{game.desc}</span>
+              </motion.button>
+            ))}
+          </div>
+        </>
+      ) : selectedGame === 'memory' ? (
+        <>
+          <motion.button onClick={() => setSelectedGame(null)} className="mb-4 flex items-center gap-2 text-teal-600 text-xl" whileHover={{ x: -5 }}>← Back to Games</motion.button>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-pink-700">🧠 Memory Match</h2>
+            <div className="flex gap-4"><span className="bg-pink-100 px-4 py-2 rounded-full text-pink-700 font-bold">Moves: {moves}</span><motion.button onClick={initMemoryGame} className="bg-pink-500 text-white px-4 py-2 rounded-full font-bold" whileTap={{ scale: 0.95 }}>New Game</motion.button></div>
+          </div>
+          <div className="grid grid-cols-4 gap-4 max-w-2xl mx-auto">
+            {memoryCards.map((card) => (
+              <motion.button key={card.id} onClick={() => handleCardClick(card.id)} className={`aspect-square rounded-2xl text-5xl flex items-center justify-center shadow-lg ${card.flipped || card.matched ? 'bg-white' : 'bg-gradient-to-br from-pink-400 to-pink-600'}`} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>{card.flipped || card.matched ? card.emoji : '❓'}</motion.button>
+            ))}
+          </div>
+          {memoryCards.length > 0 && memoryCards.every(c => c.matched) && (<motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="mt-6 text-center"><p className="text-3xl font-bold text-green-600">🎉 Wonderful! You did it in {moves} moves!</p></motion.div>)}
+        </>
+      ) : selectedGame === 'trivia' ? (
+        <>
+          <motion.button onClick={() => { setSelectedGame(null); setTriviaQuestion(0); setTriviaScore(0); setSelectedAnswer(null); }} className="mb-4 flex items-center gap-2 text-teal-600 text-xl" whileHover={{ x: -5 }}>← Back to Games</motion.button>
+          <div className="flex justify-between items-center mb-4"><h2 className="text-2xl font-bold text-blue-700">❓ Trivia Quiz</h2><span className="bg-blue-100 px-4 py-2 rounded-full text-blue-700 font-bold">Score: {triviaScore}/{triviaQuestions.length}</span></div>
+          {triviaQuestion < triviaQuestions.length ? (
+            <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-blue-200">
+              <p className="text-sm text-blue-500 mb-2">Question {triviaQuestion + 1} of {triviaQuestions.length}</p>
+              <h3 className="text-2xl font-bold text-gray-800 mb-6">{triviaQuestions[triviaQuestion].q}</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {triviaQuestions[triviaQuestion].options.map((option, index) => (
+                  <motion.button key={index} onClick={() => selectedAnswer === null && handleTriviaAnswer(index)} className={`p-6 rounded-xl text-xl font-medium ${selectedAnswer === null ? 'bg-blue-50 hover:bg-blue-100 text-gray-800' : index === triviaQuestions[triviaQuestion].correct ? 'bg-green-500 text-white' : selectedAnswer === index ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400'}`} whileHover={selectedAnswer === null ? { scale: 1.02 } : {}} whileTap={selectedAnswer === null ? { scale: 0.98 } : {}}>{option}</motion.button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="bg-white rounded-2xl p-8 shadow-lg border-2 border-blue-200 text-center">
+              <p className="text-6xl mb-4">🏆</p><p className="text-3xl font-bold text-blue-700">Quiz Complete!</p><p className="text-2xl text-gray-600 mt-2">You scored {triviaScore} out of {triviaQuestions.length}</p>
+              <motion.button onClick={() => { setTriviaQuestion(0); setTriviaScore(0); setSelectedAnswer(null); }} className="mt-6 bg-blue-500 text-white px-8 py-3 rounded-full text-xl font-bold" whileTap={{ scale: 0.95 }}>Play Again</motion.button>
+            </motion.div>
+          )}
+        </>
+      ) : null}
+      <BottomBar onBack={() => onNavigate('activities')} onHome={() => onNavigate('home')} />
+    </motion.div>
+  );
+};
+
+// ============ EXERCISES SCREEN ============
+const ExercisesScreen: React.FC<{ onNavigate: (screen: Screen) => void; residentName?: string }> = ({ onNavigate, residentName = "Friend" }) => {
+  const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  
+  const exercises = [
+    { id: 'chair', name: "Chair Exercises", icon: "🪑", color: "from-blue-100 to-blue-200", border: "border-blue-300", duration: "10 min" },
+    { id: 'stretches', name: "Gentle Stretches", icon: "🧘", color: "from-green-100 to-green-200", border: "border-green-300", duration: "8 min" },
+    { id: 'breathing', name: "Breathing", icon: "🌬️", color: "from-purple-100 to-purple-200", border: "border-purple-300", duration: "5 min" },
+    { id: 'hands', name: "Hand Exercises", icon: "✋", color: "from-orange-100 to-orange-200", border: "border-orange-300", duration: "5 min" },
+  ];
+  
+  const exerciseSteps: Record<string, {title: string, instruction: string}[]> = {
+    chair: [
+      { title: "Seated March", instruction: "Sit tall. Lift one knee, then the other, like marching in place." },
+      { title: "Ankle Circles", instruction: "Lift one foot slightly. Rotate your ankle in circles, 5 times each direction." },
+      { title: "Arm Raises", instruction: "Raise both arms slowly overhead, then lower them. Keep breathing steadily." },
+      { title: "Shoulder Rolls", instruction: "Roll your shoulders forward 5 times, then backward 5 times." },
+    ],
+    stretches: [
+      { title: "Neck Stretch", instruction: "Slowly tilt your head to the right, hold 10 seconds. Repeat left." },
+      { title: "Shoulder Stretch", instruction: "Bring one arm across your chest. Gently press it closer with your other hand." },
+      { title: "Wrist Circles", instruction: "Extend your arms and rotate your wrists slowly in both directions." },
+    ],
+    breathing: [
+      { title: "Deep Breath In", instruction: "Breathe in slowly through your nose for 4 counts." },
+      { title: "Hold", instruction: "Hold your breath gently for 4 counts. Stay relaxed." },
+      { title: "Slow Release", instruction: "Breathe out slowly through your mouth for 6 counts." },
+    ],
+    hands: [
+      { title: "Finger Spread", instruction: "Spread your fingers wide apart, then make a fist. Repeat 10 times." },
+      { title: "Thumb Touches", instruction: "Touch your thumb to each fingertip, one at a time." },
+      { title: "Hand Squeeze", instruction: "Squeeze an imaginary ball, hold 3 seconds, release." },
+    ],
+  };
+  
+  const currentSteps = selectedExercise ? exerciseSteps[selectedExercise] || [] : [];
+
+  return (
+    <motion.div key="exercises" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🧘 Exercises</h1>
+        <HelpButton />
+      </div>
+      {!selectedExercise ? (
+        <>
+          <div className="bg-gradient-to-r from-green-50 to-teal-50 border-2 border-green-200 rounded-2xl p-4 mb-6 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-2xl">💪</div>
+            <p className="text-lg text-green-800">A little movement goes a long way, {residentName}!</p>
+          </div>
+          <div className="flex-1 grid grid-cols-2 gap-6 mb-6" style={{ zIndex: 10 }}>
+            {exercises.map((exercise) => (
+              <motion.button key={exercise.id} onClick={() => { setSelectedExercise(exercise.id); setCurrentStep(0); }} className={`bg-gradient-to-br ${exercise.color} rounded-2xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 ${exercise.border}`} whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+                <span className="text-6xl">{exercise.icon}</span>
+                <span className="text-2xl font-bold text-gray-800">{exercise.name}</span>
+                <span className="bg-white/60 px-4 py-1 rounded-full text-gray-600">{exercise.duration}</span>
+              </motion.button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <motion.button onClick={() => { setSelectedExercise(null); setCurrentStep(0); }} className="mb-4 flex items-center gap-2 text-teal-600 text-xl" whileHover={{ x: -5 }}>← Back to Exercises</motion.button>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-green-700">{exercises.find(e => e.id === selectedExercise)?.icon} {exercises.find(e => e.id === selectedExercise)?.name}</h2>
+            <span className="bg-green-100 px-4 py-2 rounded-full text-green-700 font-bold">Step {currentStep + 1} of {currentSteps.length}</span>
+          </div>
+          <div className="flex-1 bg-white rounded-2xl p-8 shadow-lg border-2 border-green-200 flex flex-col items-center justify-center text-center">
+            <motion.div key={currentStep} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-xl">
+              <p className="text-4xl mb-6">{exercises.find(e => e.id === selectedExercise)?.icon}</p>
+              <h3 className="text-3xl font-bold text-gray-800 mb-4">{currentSteps[currentStep]?.title}</h3>
+              <p className="text-xl text-gray-600 leading-relaxed">{currentSteps[currentStep]?.instruction}</p>
+            </motion.div>
+          </div>
+          <div className="flex justify-between items-center mt-6">
+            <motion.button onClick={() => setCurrentStep(Math.max(0, currentStep - 1))} disabled={currentStep === 0} className={`px-8 py-4 rounded-full text-xl font-bold ${currentStep === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gray-300 text-gray-700'}`} whileTap={currentStep > 0 ? { scale: 0.95 } : {}}>← Previous</motion.button>
+            <div className="flex gap-2">{currentSteps.map((_, index) => (<div key={index} className={`w-3 h-3 rounded-full ${index === currentStep ? 'bg-green-500' : index < currentStep ? 'bg-green-300' : 'bg-gray-300'}`} />))}</div>
+            {currentStep < currentSteps.length - 1 ? (
+              <motion.button onClick={() => setCurrentStep(currentStep + 1)} className="px-8 py-4 rounded-full text-xl font-bold bg-green-500 text-white" whileTap={{ scale: 0.95 }}>Next →</motion.button>
+            ) : (
+              <motion.button onClick={() => { setSelectedExercise(null); setCurrentStep(0); }} className="px-8 py-4 rounded-full text-xl font-bold bg-teal-500 text-white" whileTap={{ scale: 0.95 }}>✓ Done!</motion.button>
+            )}
+          </div>
+        </>
+      )}
+      <BottomBar onBack={() => onNavigate('activities')} onHome={() => onNavigate('home')} />
+    </motion.div>
+  );
+};
+
+
+// HEALTH SCREEN
+const HealthScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => (
+  <motion.div key="health" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
+    className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
+    <div className="flex justify-between items-center mb-6">
+      <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>❤️ My Health</h1>
+      <HelpButton />
+    </div>
+    <div className="flex-1 grid grid-cols-2 gap-6 mb-6" style={{ zIndex: 10 }}>
+      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-purple-200"
+        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-5xl">💊</span>
+        <span className="text-xl font-bold text-gray-800">Medications</span>
+        <div className="bg-purple-100 px-4 py-2 rounded-full">
+          <span className="text-purple-700 font-semibold">Next: 2:30 PM</span>
+        </div>
+      </motion.button>
+      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-red-200"
+        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-5xl">📊</span>
+        <span className="text-xl font-bold text-gray-800">My Vitals</span>
+        <div className="bg-red-100 px-4 py-2 rounded-full">
+          <span className="text-red-700 font-semibold">Log reading</span>
+        </div>
+      </motion.button>
+      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200"
+        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-5xl">👨‍⚕️</span>
+        <span className="text-xl font-bold text-gray-800">GP Messages</span>
+        <div className="bg-blue-100 px-4 py-2 rounded-full">
+          <span className="text-blue-700 font-semibold">1 new message</span>
+        </div>
+      </motion.button>
+      <motion.button className="bg-white/90 backdrop-blur-md rounded-3xl p-6 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200"
+        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-5xl">📝</span>
+        <span className="text-xl font-bold text-gray-800">How I Feel</span>
+        <div className="bg-green-100 px-4 py-2 rounded-full">
+          <span className="text-green-700 font-semibold">Log symptoms</span>
+        </div>
+      </motion.button>
+    </div>
+    <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
+  </motion.div>
+);
+
 // MY DAY SCREEN
-const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
-  const [events, setEvents] = useState<any[]>([]);
-  const [greeting, setGreeting] = useState('');
-  const [dayName, setDayName] = useState('');
-  const [total, setTotal] = useState(0);
-  const userId = localStorage.getItem('wardaUserId') || '';
-
-  useEffect(() => {
-    if (!userId) return;
-    fetch(API_BASE + '/api/calendar/' + userId + '?date=' + new Date().toISOString().split('T')[0])
-      .then(r => r.json()).then(d => {
-        setEvents(d.events || []); setGreeting(d.greeting || ''); setDayName(d.dayName || ''); setTotal(d.total || 0);
-      }).catch(() => {});
-  }, [userId]);
-
-  const eventColors: Record<string, string> = { family: 'border-l-green-500 bg-green-50', medical: 'border-l-red-500 bg-red-50', activity: 'border-l-orange-500 bg-orange-50', call: 'border-l-blue-500 bg-blue-50', medication: 'border-l-purple-500 bg-purple-50' };
+const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => {
+  const eventColors: Record<string, string> = {
+    family: 'border-l-green-500 bg-green-50',
+    medical: 'border-l-red-500 bg-red-50',
+    activity: 'border-l-orange-500 bg-orange-50',
+    call: 'border-l-blue-500 bg-blue-50',
+    medication: 'border-l-purple-500 bg-purple-50',
+  };
   const eventIcons: Record<string, string> = { family: '👨‍👩‍👧', medical: '🏥', activity: '🎯', call: '📞', medication: '💊' };
-
+  
   return (
     <motion.div key="myday" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
       className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>📅 My Day</h1>
-        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+        <HelpButton />
       </div>
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-4 mb-6" style={{ zIndex: 10 }}>
-        <h2 className="text-2xl font-bold text-amber-800 mb-1">{greeting}, {RESIDENT_NAME}! — {dayName}</h2>
-        <p className="text-amber-600">{total > 0 ? `You have ${total} thing${total > 1 ? 's' : ''} planned today` : 'No events scheduled today, dear. Enjoy a relaxing day!'}</p>
+        <h2 className="text-2xl font-bold text-amber-800 mb-1">Today - Sunday, 2nd February</h2>
+        <p className="text-amber-600">You have 4 things planned today</p>
       </div>
       <div className="flex-1 space-y-4 mb-6 overflow-y-auto" style={{ zIndex: 10 }}>
-        {events.length > 0 ? events.map((event: any) => (
-          <motion.div key={event.id} className={`bg-white/90 backdrop-blur-md rounded-2xl p-5 shadow-lg border-l-4 ${eventColors[event.type] || 'border-l-gray-300 bg-gray-50'}`} whileHover={{ scale: 1.01, x: 4 }}>
+        {mockEvents.map((event) => (
+          <motion.div key={event.id}
+            className={`bg-white/90 backdrop-blur-md rounded-2xl p-5 shadow-lg border-l-4 ${eventColors[event.type]}`}
+            whileHover={{ scale: 1.01, x: 4 }}>
             <div className="flex items-center gap-4">
-              <div className="text-4xl">{eventIcons[event.type] || '📌'}</div>
-              <div className="flex-1"><div className="text-xl font-bold text-gray-800">{event.title}</div>{event.notes && <div className="text-gray-500 text-sm">{event.notes}</div>}</div>
+              <div className="text-4xl">{eventIcons[event.type]}</div>
+              <div className="flex-1">
+                <div className="text-xl font-bold text-gray-800">{event.title}</div>
+                <div className="text-gray-500">at {event.time}</div>
+              </div>
               <div className="text-2xl font-bold text-gray-400">{event.time}</div>
             </div>
           </motion.div>
-        )) : (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4">☀️</div>
-            <p className="text-xl text-gray-500">A peaceful day ahead, {RESIDENT_NAME}.</p>
-            <p className="text-gray-400 mt-2">Your care team can add events for you.</p>
-          </div>
-        )}
+        ))}
       </div>
       <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
     </motion.div>
@@ -806,107 +1152,46 @@ const MyDayScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
 };
 
 // BROWSE WEB SCREEN
-const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentUrl, setCurrentUrl] = useState('');
-  const [blocked, setBlocked] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const shortcuts = [
-    { icon: '📺', name: 'BBC News', url: 'https://www.bbc.co.uk/news', bg: '#fef2f2' },
-    { icon: '🌤️', name: 'Weather', url: 'https://www.bbc.co.uk/weather', bg: '#eff6ff' },
-    { icon: '📰', name: 'Daily Mail', url: 'https://www.dailymail.co.uk', bg: '#f9fafb' },
-    { icon: '🎬', name: 'YouTube', url: 'https://www.youtube.com', bg: '#fef2f2' },
-    { icon: '🛒', name: 'Amazon', url: 'https://www.amazon.co.uk', bg: '#fffbeb' },
-    { icon: '🏥', name: 'NHS', url: 'https://www.nhs.uk', bg: '#f0fdfa' },
-    { icon: '📚', name: 'Wikipedia', url: 'https://en.wikipedia.org', bg: '#f9fafb' },
-    { icon: '🏴\u200d', name: 'Scotsman', url: 'https://www.scotsman.com', bg: '#eff6ff' },
-    { icon: '🌍', name: 'Nat Geo', url: 'https://www.nationalgeographic.com', bg: '#fefce8' },
-  ];
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    setLoading(true); setBlocked('');
-    try {
-      const res = await fetch('https://api.meetwarda.com/api/browse/search', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery })
-      });
-      const data = await res.json();
-      if (data.safe) { setCurrentUrl(data.url); }
-      else { setBlocked('This search contains content that isn\u2019t suitable. Try something else, dear.'); setCurrentUrl(''); }
-    } catch (err) { setBlocked('Could not search right now.'); }
-    setLoading(false);
-  };
-
-  const handleShortcut = async (url: string) => {
-    setLoading(true); setBlocked('');
-    try {
-      const res = await fetch('https://api.meetwarda.com/api/browse/check', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
-      });
-      const data = await res.json();
-      if (data.safe) { setCurrentUrl(url); }
-      else { setBlocked('This website isn\u2019t available right now.'); setCurrentUrl(''); }
-    } catch (err) { setCurrentUrl(url); }
-    setLoading(false);
-  };
-
-  if (currentUrl) return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', zIndex: 50, background: '#fff' }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: '#f0fdfa', borderBottom: '2px solid #99f6e4', gap: 8 }}>
-        <button onClick={() => setCurrentUrl('')} style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>← Back</button>
-        <div style={{ flex: 1, padding: '8px 12px', background: '#fff', borderRadius: 8, fontSize: 14, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{currentUrl}</div>
-        <button onClick={() => setCurrentUrl('')} style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>✕ Close</button>
-      </div>
-      <iframe src={currentUrl} style={{ flex: 1, border: 'none', width: '100%' }} title="Browse" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
+const BrowseScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => (
+  <motion.div key="browse" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
+    className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
+    <div className="flex justify-between items-center mb-6">
+      <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🌐 Browse Web</h1>
+      <HelpButton />
     </div>
-  );
-
-  return (
-    <div style={{ padding: 24, minHeight: '100vh', position: 'relative', zIndex: 5 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: '#0f766e', fontFamily: 'Georgia, serif' }}>🌐 Browse Web</h1>
-        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
-      </div>
-
-      <div style={{ background: 'rgba(255,255,255,0.9)', borderRadius: 16, padding: 16, marginBottom: 20, display: 'flex', gap: 12 }}>
-        <input
-          type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          placeholder="Search Google or type a website..."
-          style={{ flex: 1, padding: '14px 20px', borderRadius: 12, border: '2px solid #e5e7eb', fontSize: 18, outline: 'none' }}
-        />
-        <button onClick={handleSearch} disabled={loading}
-          style={{ padding: '14px 24px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 18, fontWeight: 700, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
-          🔍 Search
-        </button>
-      </div>
-
-      {blocked && (
-        <div style={{ background: '#fef2f2', border: '2px solid #fecaca', borderRadius: 12, padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 28 }}>🛡️</span>
-          <div style={{ color: '#991b1b', fontSize: 16 }}>{blocked}</div>
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-        {shortcuts.map(s => (
-          <button key={s.name} onClick={() => handleShortcut(s.url)}
-            style={{ background: s.bg, borderRadius: 20, padding: 20, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 10, border: '2px solid #e5e7eb', cursor: 'pointer', transition: 'transform 0.1s' }}>
-            <span style={{ fontSize: 44 }}>{s.icon}</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#374151' }}>{s.name}</span>
-          </button>
-        ))}
-      </div>
-
-      <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
+    <div className="bg-white/90 backdrop-blur-md rounded-2xl p-4 mb-6 flex gap-4" style={{ zIndex: 10 }}>
+      <input type="text" placeholder="Search Google or type a website..." 
+        className="flex-1 px-6 py-4 rounded-xl border-2 border-gray-200 text-lg focus:outline-none focus:border-teal-400" />
+      <motion.button className="px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-bold text-lg shadow-lg"
+        whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
+        🔍 Search
+      </motion.button>
     </div>
-  );
-};
+    <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
+      {[
+        { icon: '📺', name: 'BBC News', color: 'from-red-100 to-red-200 border-red-300' },
+        { icon: '🌤️', name: 'Weather', color: 'from-blue-100 to-blue-200 border-blue-300' },
+        { icon: '📰', name: 'Daily Mail', color: 'from-gray-100 to-gray-200 border-gray-300' },
+        { icon: '🎬', name: 'YouTube', color: 'from-red-100 to-pink-200 border-red-300' },
+        { icon: '🛒', name: 'Amazon', color: 'from-orange-100 to-yellow-200 border-orange-300' },
+        { icon: '⭐', name: 'Favourites', color: 'from-amber-100 to-amber-200 border-amber-300' },
+      ].map((site) => (
+        <motion.button key={site.name}
+          className={`bg-gradient-to-br ${site.color} rounded-3xl p-6 flex flex-col items-center gap-3 shadow-lg border-2`}
+          whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+          <span className="text-5xl">{site.icon}</span>
+          <span className="text-xl font-bold text-gray-700">{site.name}</span>
+        </motion.button>
+      ))}
+    </div>
+    <BottomBar onBack={() => onNavigate('home')} onHome={() => onNavigate('home')} />
+  </motion.div>
+);
+
+// ============ MAIN APP ============
+
 // VOICE SCREEN
-const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
+const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void; residentName?: string; residentId?: string }> = ({ onNavigate, residentName = "Friend", residentId = "guest" }) => {
   const [isListening, setIsListening] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [status, setStatus] = useState("Tap the microphone to talk to Warda");
@@ -922,7 +1207,11 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
     setIsListening(true);
     setStatus("Listening...");
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) { setStatus("Speech not supported. Try Chrome."); setIsListening(false); return; }
+    if (!SpeechRecognition) {
+      setStatus("Speech not supported. Try Chrome.");
+      setIsListening(false);
+      return;
+    }
     const recognition = new SpeechRecognition();
     recognition.lang = "en-GB";
     recognition.continuous = false;
@@ -932,36 +1221,26 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
       setStatus("Warda is responding...");
       setIsListening(false);
       try {
-        const res = await fetch("https://api.meetwarda.com/api/voice/command", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: "margaret123", message: text, context: { residentName: "Margaret" } })
+        const res = await fetch("http://13.40.187.182:3001/api/voice/conversation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: residentId, message: text, context: { residentName } })
         });
         const data = await res.json();
-        if (data.success) {
-            setStatus("Warda is speaking...");
-            if (data.audio) playAudio(data.audio);
-            // Handle navigation commands
-            if (data.type === 'navigation' && data.screen) {
-              setTimeout(() => {
-                if (data.screen === 'help') { onHelp(); }
-                else { onNavigate(data.screen as Screen); }
-              }, 1500);
-            }
-            // Handle call commands
-            if (data.type === 'call' && data.calleeName) {
-              setStatus("Connecting call to " + data.calleeName + "...");
-            }
-          }
+        if (data.success && data.audio) {
+          setStatus("Warda is speaking...");
+          playAudio(data.audio);
+        }
       } catch (err) { setStatus("Connection error. Tap to try again."); }
     };
-    recognition.onerror = () => { setStatus("Could not hear you. Tap again."); setIsListening(false); };
+    recognition.onerror = (e: any) => { console.log("Speech error:", e.error); setStatus("Error: " + e.error + ". Check microphone permission."); setIsListening(false); };
     recognition.start();
   };
   return (
     <motion.div key="voice" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: "Georgia, serif" }}>🎤 Talk to Warda</h1>
-        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+        <HelpButton />
       </div>
       <div className="flex-1 flex flex-col items-center justify-center gap-8" style={{ zIndex: 10 }}>
         <div className="bg-white/80 backdrop-blur-md rounded-3xl p-8 text-center shadow-xl border-2 border-white/50">
@@ -970,7 +1249,7 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
         </div>
         <motion.button onClick={handleMicClick} disabled={isListening || isPlaying}
           className="w-40 h-40 rounded-full flex items-center justify-center text-7xl shadow-2xl"
-          style={{ background: isListening ? "linear-gradient(135deg, #F87171, #EF4444)" : isPlaying ? "linear-gradient(135deg, #A78BFA, #8B5CF6)" : "linear-gradient(135deg, #5EEAD4, #14B8A6)" }}
+          style={{ background: isListening ? "linear-gradient(135deg, #F87171 0%, #EF4444 100%)" : isPlaying ? "linear-gradient(135deg, #A78BFA 0%, #8B5CF6 100%)" : "linear-gradient(135deg, #5EEAD4 0%, #14B8A6 100%)" }}
           whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
           {isListening ? "👂" : isPlaying ? "🔊" : "🎤"}
         </motion.button>
@@ -980,27 +1259,35 @@ const VoiceScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
     </motion.div>
   );
 };
-
 // FAITH SCREEN
-const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => (
+const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void }> = ({ onNavigate }) => (
   <motion.div key="faith" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
     className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
     <div className="flex justify-between items-center mb-6">
       <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: 'Georgia, serif' }}>🙏 My Faith</h1>
-      <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
+      <HelpButton />
     </div>
     <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-4 mb-6" style={{ zIndex: 10 }}>
       <p className="text-lg text-amber-800 text-center">Find comfort, peace, and inspiration</p>
     </div>
     <div className="flex-1 grid grid-cols-3 gap-6 mb-6" style={{ zIndex: 10 }}>
-      <motion.button className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200" whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">✝️</span><span className="text-2xl font-bold text-blue-800">Christian</span><span className="text-blue-600 text-center">Bible, Hymns, Prayers</span>
+      <motion.button className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-blue-200"
+        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">✝️</span>
+        <span className="text-2xl font-bold text-blue-800">Christian</span>
+        <span className="text-blue-600 text-center">Bible, Hymns, Prayers</span>
       </motion.button>
-      <motion.button className="bg-gradient-to-br from-green-50 to-green-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200" whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">☪️</span><span className="text-2xl font-bold text-green-800">Muslim</span><span className="text-green-600 text-center">Quran, Duas, Nasheeds</span>
+      <motion.button className="bg-gradient-to-br from-green-50 to-green-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-green-200"
+        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">☪️</span>
+        <span className="text-2xl font-bold text-green-800">Muslim</span>
+        <span className="text-green-600 text-center">Quran, Duas, Nasheeds</span>
       </motion.button>
-      <motion.button className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-amber-200" whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
-        <span className="text-6xl">✡️</span><span className="text-2xl font-bold text-amber-800">Jewish</span><span className="text-amber-600 text-center">Torah, Psalms, Prayers</span>
+      <motion.button className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-3xl p-8 flex flex-col items-center gap-4 shadow-lg border-2 border-amber-200"
+        whileHover={{ scale: 1.03, y: -4 }} whileTap={{ scale: 0.98 }}>
+        <span className="text-6xl">✡️</span>
+        <span className="text-2xl font-bold text-amber-800">Jewish</span>
+        <span className="text-amber-600 text-center">Torah, Psalms, Prayers</span>
       </motion.button>
     </div>
     <div className="bg-white/80 backdrop-blur-md rounded-2xl p-6 mb-6 border-2 border-white/50 shadow-lg" style={{ zIndex: 10 }}>
@@ -1012,214 +1299,38 @@ const FaithScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () =
   </motion.div>
 );
 
-// ============ MAIN APP ============
-
-
-// ─── Video Call Screen (Chime SDK) ──────────────────────────
-const VideoCallScreen: React.FC<{
-  meeting: any; attendee: any; callerName: string;
-  onEnd: () => void; onNavigate: (s: Screen) => void;
-}> = ({ meeting, attendee, callerName, onEnd, onNavigate }) => {
-  const localVideoRef = React.useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = React.useRef<HTMLVideoElement>(null);
-  const [connected, setConnected] = React.useState(false);
-  const [muted, setMuted] = React.useState(false);
-  const [elapsed, setElapsed] = React.useState(0);
-  const meetingSessionRef = React.useRef<any>(null);
-
-  React.useEffect(() => {
-    let timer: any;
-    const startCall = async () => {
-      try {
-        const ChimeSDK = await import('amazon-chime-sdk-js');
-        const logger = new ChimeSDK.ConsoleLogger('WardaCall', ChimeSDK.LogLevel.WARN);
-        const deviceController = new ChimeSDK.DefaultDeviceController(logger);
-        const config = new ChimeSDK.MeetingSessionConfiguration(meeting, attendee);
-        const session = new ChimeSDK.DefaultMeetingSession(config, logger, deviceController);
-        meetingSessionRef.current = session;
-
-        // Bind audio
-        const audioEl = document.createElement('audio');
-        audioEl.id = 'warda-call-audio';
-        document.body.appendChild(audioEl);
-        await session.audioVideo.bindAudioElement(audioEl);
-
-        // Start local video
-        const videoDevices = await session.audioVideo.listVideoInputDevices();
-        if (videoDevices.length > 0) {
-          await session.audioVideo.startVideoInput(videoDevices[0].deviceId);
-        }
-        const audioDevices = await session.audioVideo.listAudioInputDevices();
-        if (audioDevices.length > 0) {
-          await session.audioVideo.startAudioInput(audioDevices[0].deviceId);
-        }
-
-        // Observer for remote video
-        const observer: any = {
-          videoTileDidUpdate: (tileState: any) => {
-            if (tileState.localTile && localVideoRef.current) {
-              session.audioVideo.bindVideoElement(tileState.tileId, localVideoRef.current);
-            } else if (!tileState.localTile && remoteVideoRef.current) {
-              session.audioVideo.bindVideoElement(tileState.tileId, remoteVideoRef.current);
-            }
-          },
-          audioVideoDidStart: () => { setConnected(true); },
-          audioVideoDidStop: () => { handleEnd(); }
-        };
-        session.audioVideo.addObserver(observer);
-        session.audioVideo.start();
-        session.audioVideo.startLocalVideoTile();
-
-        timer = setInterval(() => setElapsed(e => e + 1), 1000);
-      } catch (err) {
-        console.error('Video call error:', err);
-      }
-    };
-    startCall();
-    return () => {
-      clearInterval(timer);
-      const el = document.getElementById('warda-call-audio');
-      if (el) el.remove();
-    };
-  }, []);
-
-  const handleEnd = async () => {
-    try {
-      if (meetingSessionRef.current) {
-        meetingSessionRef.current.audioVideo.stop();
-      }
-    } catch (e) {}
-    onEnd();
-  };
-
-  const toggleMute = () => {
-    if (!meetingSessionRef.current) return;
-    if (muted) { meetingSessionRef.current.audioVideo.realtimeUnmuteLocalAudio(); }
-    else { meetingSessionRef.current.audioVideo.realtimeMuteLocalAudio(); }
-    setMuted(!muted);
-  };
-
-  const formatTime = (s: number) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: '#1a1a2e', display: 'flex', flexDirection: 'column', zIndex: 9999 }}>
-      <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000' }} />
-        {!connected && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-            <div style={{ fontSize: 64, marginBottom: 16 }}>📹</div>
-            <div style={{ fontSize: 28, fontWeight: 600 }}>Connecting to {callerName}...</div>
-          </div>
-        )}
-        <video ref={localVideoRef} autoPlay playsInline muted style={{ position: 'absolute', bottom: 100, right: 20, width: 160, height: 120, borderRadius: 12, border: '2px solid #fff', objectFit: 'cover', background: '#333' }} />
-        <div style={{ position: 'absolute', top: 20, left: 0, right: 0, textAlign: 'center' }}>
-          <div style={{ color: '#fff', fontSize: 22, fontWeight: 600 }}>{callerName}</div>
-          <div style={{ color: '#aaa', fontSize: 18 }}>{connected ? formatTime(elapsed) : 'Connecting...'}</div>
-        </div>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 32, padding: 24, background: 'rgba(0,0,0,0.8)' }}>
-        <button onClick={toggleMute} style={{ width: 72, height: 72, borderRadius: '50%', border: 'none', fontSize: 28, cursor: 'pointer', background: muted ? '#f59e0b' : '#374151', color: '#fff' }}>
-          {muted ? '🔇' : '🎤'}
-        </button>
-        <button onClick={handleEnd} style={{ width: 72, height: 72, borderRadius: '50%', border: 'none', fontSize: 28, cursor: 'pointer', background: '#ef4444', color: '#fff' }}>
-          📞
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// ─── Incoming Call Overlay ──────────────────────────────────
-const IncomingCallOverlay: React.FC<{
-  callerName: string; onAnswer: () => void; onDecline: () => void;
-}> = ({ callerName, onAnswer, onDecline }) => (
-  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-    <div style={{ fontSize: 80, marginBottom: 16, animation: 'pulse 1.5s infinite' }}>📹</div>
-    <div style={{ color: '#fff', fontSize: 36, fontWeight: 700, marginBottom: 8 }}>{callerName}</div>
-    <div style={{ color: '#9ca3af', fontSize: 22, marginBottom: 48 }}>is calling you...</div>
-    <div style={{ display: 'flex', gap: 48 }}>
-      <button onClick={onDecline} style={{ width: 88, height: 88, borderRadius: '50%', border: 'none', fontSize: 36, cursor: 'pointer', background: '#ef4444', color: '#fff', boxShadow: '0 0 30px rgba(239,68,68,0.5)' }}>✕</button>
-      <button onClick={onAnswer} style={{ width: 88, height: 88, borderRadius: '50%', border: 'none', fontSize: 36, cursor: 'pointer', background: '#22c55e', color: '#fff', boxShadow: '0 0 30px rgba(34,197,94,0.5)' }}>📞</button>
-    </div>
-    <style>{'@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }'}</style>
-  </div>
-);
-
-// ─── Settings Screen ──────────────────────────────────────
-const SettingsScreen: React.FC<{ onNavigate: (screen: Screen) => void; onHelp: () => void; helpConfirmed: boolean }> = ({ onNavigate, onHelp, helpConfirmed }) => {
-  const [volume, setVolume] = useState(80);
-  const [brightness, setBrightness] = useState(90);
-  const [textSize, setTextSize] = useState(100);
-  const [wardaSpeed, setWardaSpeed] = useState(50);
-
-  const SliderControl: React.FC<{ label: string; emoji: string; value: number; onChange: (v: number) => void; lowLabel: string; highLabel: string }> = ({ label, emoji, value, onChange, lowLabel, highLabel }) => (
-    <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-xl border-2 border-white/50 mb-5">
-      <div className="flex items-center gap-3 mb-4">
-        <span style={{ fontSize: 36 }}>{emoji}</span>
-        <span className="text-2xl font-bold text-teal-700" style={{ fontFamily: "Georgia, serif" }}>{label}</span>
-        <span className="ml-auto text-2xl font-bold text-teal-600">{value}%</span>
-      </div>
-      <input
-        type="range" min="0" max="100" value={value}
-        onChange={(e) => onChange(parseInt(e.target.value))}
-        style={{ width: '100%', height: 44, accentColor: '#0D9488', cursor: 'pointer' }}
-      />
-      <div className="flex justify-between mt-2">
-        <span className="text-lg text-gray-500">{lowLabel}</span>
-        <span className="text-lg text-gray-500">{highLabel}</span>
-      </div>
-    </div>
-  );
-
-  return (
-    <motion.div key="settings" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
-      className="min-h-screen flex flex-col p-6 relative" style={{ zIndex: 5 }}>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-teal-700" style={{ fontFamily: "Georgia, serif" }}>⚙️ Settings</h1>
-        <HelpButton onPress={onHelp} confirmed={helpConfirmed} />
-      </div>
-      <div className="flex-1 overflow-y-auto" style={{ zIndex: 10 }}>
-        <SliderControl emoji="🔊" label="Volume" value={volume} onChange={(v) => { setVolume(v); try { const u = new (window as any).AudioContext(); const g = u.createGain(); g.gain.value = v / 100; g.connect(u.destination); } catch(e){} }} lowLabel="Quiet" highLabel="Loud" />
-        <SliderControl emoji="☀️" label="Brightness" value={brightness} onChange={(v) => { setBrightness(v); document.body.style.filter = `brightness(${v / 100})`; }} lowLabel="Dim" highLabel="Bright" />
-        <SliderControl emoji="🔤" label="Text Size" value={textSize} onChange={(v) => { setTextSize(v); document.documentElement.style.fontSize = `${v}%`; }} lowLabel="Small" highLabel="Large" />
-        <SliderControl emoji="🗣️" label="Warda's Speed" value={wardaSpeed} onChange={setWardaSpeed} lowLabel="Slower" highLabel="Faster" />
-        <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-xl border-2 border-white/50 mb-5">
-          <p className="text-xl text-gray-600 text-center" style={{ fontFamily: "Georgia, serif" }}>
-            Need help? Press the <span className="text-red-500 font-bold">red help button</span> anytime.
-          </p>
-        </div>
-      </div>
-      <BottomBar onBack={() => onNavigate("home")} onHome={() => onNavigate("home")} />
-    </motion.div>
-  );
-};
-
+// ============ MAIN APP WITH AUTH ============
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('pin');
-  const [residentSession, setResidentSession] = React.useState<ResidentSession | null>(null);
-  const [familyContacts, setFamilyContacts] = React.useState<Contact[]>([]);
-  RESIDENT_ID = residentSession?.id || '';
-  RESIDENT_NAME = residentSession?.preferredName || '';
-  CARE_HOME_ID = residentSession?.careHomeId || '';
+  const [authScreen, setAuthScreen] = useState<AuthScreen>('setup');
+  const [careHome, setCareHome] = useState<CareHome | null>(null);
+  const [resident, setResident] = useState<Resident | null>(null);
+  const [activationCode, setActivationCode] = useState<string>('');
+  
+  const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [incomingCall, setIncomingCall] = useState<any>(null);
-  const [activeCall, setActiveCall] = useState<any>(null);
-  const socketRef = React.useRef<any>(null);
-  const [proactiveMsg, setProactiveMsg] = useState<any>(null);
-  const [medReminder, setMedReminder] = useState<any>(null);
 
-  // 🔌 SOCKET CONNECTION - Real-time layer
-  const {
-    isConnected,
-    incomingMessage,
-    helpConfirmed,
-    sendHelp,
-    sendMessageToFamily,
-    updateWardaStatus,
-    dismissMessage,
-    messageQueue,
-  } = useSocket(RESIDENT_ID, RESIDENT_NAME, CARE_HOME_ID);
+  // Check for existing activation on mount
+  useEffect(() => {
+    const savedCode = storage.getActivationCode();
+    const savedCareHome = storage.getCareHome();
+    const savedResident = storage.getResident();
+    const savedToken = storage.getToken();
+    
+    if (savedCode && savedCareHome) {
+      setActivationCode(savedCode);
+      setCareHome(savedCareHome);
+      
+      if (savedResident && savedToken) {
+        setResident(savedResident);
+        setAuthScreen('authenticated');
+      } else {
+        setAuthScreen('login');
+      }
+    } else {
+      setAuthScreen('setup');
+    }
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -1227,6 +1338,41 @@ function App() {
   }, []);
 
   const timeString = currentTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+  const handleDeviceActivated = (ch: CareHome) => {
+    setCareHome(ch);
+    setActivationCode(storage.getActivationCode() || '');
+    setAuthScreen('login');
+  };
+
+  const handleLogin = (res: Resident, requirePinChange: boolean, token: string) => {
+    setResident(res);
+    if (requirePinChange) {
+      setAuthScreen('change-pin');
+    } else {
+      setAuthScreen('authenticated');
+    }
+  };
+
+  const handleDeviceInvalid = () => {
+    storage.clearAll();
+    setAuthScreen('setup');
+    setCareHome(null);
+    setActivationCode('');
+    setResident(null);
+  };
+
+  const handlePinChanged = () => {
+    setAuthScreen('authenticated');
+  };
+
+  const handleLogout = () => {
+    storage.clearResident();
+    localStorage.removeItem('warda_token');
+    setResident(null);
+    setAuthScreen('login');
+    setCurrentScreen('home');
+  };
 
   const handleNavigate = (screen: Screen) => {
     setCurrentScreen(screen);
@@ -1238,71 +1384,13 @@ function App() {
     setCurrentScreen('contact');
   };
 
-  // Handle reply from message overlay
-  const handleReplyFromOverlay = (senderId: string, senderName: string) => {
-    dismissMessage();
-    // Navigate to talk screen where resident can tell Warda to reply
-    setCurrentScreen('talk');
-  };
-
-  // Help button handler
-  const handleHelp = () => {
-    sendHelp();
-  };
-
-  const handlePinLogin = (session: ResidentSession) => {
-    setResidentSession(session);
-    setCurrentScreen('home');
-    // Connect socket for video calls
-    import('socket.io-client').then(({ io }) => {
-      const socket = io('https://api.meetwarda.com', { transports: ['websocket', 'polling'] });
-      socketRef.current = socket;
-      socket.on('connect', () => {
-        console.log('Tablet socket connected');
-        socket.emit('join:tablet', { residentId: session.id });
-      });
-      socket.on('call:incoming', (data: any) => {
-        console.log('Incoming call:', data);
-        setIncomingCall(data);
-        setTimeout(() => setIncomingCall((prev: any) => prev?.meetingId === data.meetingId ? null : prev), 60000);
-      });
-      socket.on('medication:reminder', (data: any) => {
-        console.log('Medication reminder:', data);
-        setMedReminder(data);
-        if (data.audio) {
-          const audio = new Audio("data:audio/mpeg;base64," + data.audio);
-          audio.play().catch(() => {});
-        }
-      });
-      socket.on('proactive:message', (data: any) => {
-        console.log('Proactive message:', data);
-        setProactiveMsg(data);
-        // Auto-play audio
-        if (data.audio) {
-          const audio = new Audio("data:audio/mpeg;base64," + data.audio);
-          audio.play().catch(() => {});
-        }
-        // Auto-dismiss after 30s
-        setTimeout(() => setProactiveMsg((p: any) => p?.text === data.text ? null : p), 30000);
-      });
-      socket.on('call:ended', () => {
-        setIncomingCall(null); setActiveCall(null); setCurrentScreen('home');
-      });
-    });
-    // Load family contacts from API
-    fetch('https://api.meetwarda.com/api/family/contacts/' + session.id)
-      .then(r => r.json())
-      .then(data => { if (data.success) setFamilyContacts(data.contacts); })
-      .catch(err => console.error('Failed to load family contacts:', err));
-  };
-
   // Generate bubbles
-  const mainBubbles = Array.from({ length: 40 }, (_, i) => ({
+  const mainBubbles = Array.from({ length: 10 }, (_, i) => ({
     id: `main-${i}`, delay: (i % 12) * 1.2 + Math.random() * 3,
     originX: (i % 12) * (100 / 12) + Math.random() * (100 / 12 / 2),
     size: 15 + Math.random() * 35, duration: 11 + Math.random() * 5,
   }));
-  const tinyBubbles = Array.from({ length: 30 }, (_, i) => ({
+  const tinyBubbles = Array.from({ length: 10 }, (_, i) => ({
     id: `tiny-${i}`, delay: i * 0.6 + Math.random() * 2, originX: Math.random() * 100, duration: 13 + Math.random() * 5,
   }));
   const lightRays = [
@@ -1311,72 +1399,65 @@ function App() {
     { left: 72, width: 110, opacity: 0.06, delay: 0.5 }, { left: 88, width: 85, opacity: 0.05, delay: 2.5 },
   ];
 
-  return (
-    <div className="min-h-screen relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 30%, #E0F2FE 70%, #F0FDFA 100%)' }}>
-      {/* Connection indicator */}
-      <ConnectionDot connected={isConnected} />
+  // Auth screens
+  if (authScreen === 'setup') {
+    return <DeviceSetupScreen onActivated={handleDeviceActivated} />;
+  }
 
-      {/* Background effects */}
+  if (authScreen === 'login' && careHome && activationCode) {
+    return (
+      <PinLoginScreen 
+        careHome={careHome} 
+        activationCode={activationCode}
+        onLogin={handleLogin}
+        onDeviceInvalid={handleDeviceInvalid}
+      />
+    );
+  }
+
+  if (authScreen === 'change-pin' && resident) {
+    return <ChangePinScreen resident={resident} onPinChanged={handlePinChanged} />;
+  }
+
+  // Main app (authenticated)
+  return (
+    <div className="min-h-screen relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #FDF8F3 0%, #F9F5EF 30%, #F4EFE8 60%, #EBE6DE 100%)' }}>
       {lightRays.map((ray, i) => <LightRay key={i} {...ray} />)}
       {mainBubbles.map((b) => <AquariumBubble key={b.id} {...b} />)}
       {tinyBubbles.map((b) => <TinyBubble key={b.id} {...b} />)}
 
-      {/* Message overlay - shows when family/staff sends a message */}
-      <MessageOverlay
-        message={incomingMessage}
-        residentName={RESIDENT_NAME}
-        onDismiss={dismissMessage}
-        onReply={handleReplyFromOverlay}
-        queueCount={messageQueue.length}
-      />
+      {/* Logout button */}
+      <motion.button
+        onClick={handleLogout}
+        className="absolute top-4 right-4 bg-white/80 backdrop-blur-md text-gray-600 px-4 py-2 rounded-xl text-sm font-medium shadow-lg z-50"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}>
+        🚪 Sign Out
+      </motion.button>
 
-      {/* Screens */}
+      {/* Welcome message with resident name */}
+      {resident && currentScreen === 'home' && (
+        <div className="absolute top-4 left-4 bg-white/80 backdrop-blur-md px-4 py-2 rounded-xl shadow-lg z-50">
+          <span className="text-teal-700 font-medium">
+            👋 Hello, {resident.preferredName || resident.firstName}!
+          </span>
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
-        {currentScreen === 'pin' && <PinLoginScreen onLogin={handlePinLogin} />}
-        {currentScreen === 'home' && <HomeScreen onNavigate={handleNavigate} time={timeString} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'talk' && <TalkScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'voice' && <VoiceScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'family' && <FamilyScreen onNavigate={handleNavigate} onSelectContact={handleSelectContact} onHelp={handleHelp} helpConfirmed={helpConfirmed}  contacts={familyContacts} />}
-        {currentScreen === 'contact' && selectedContact && <ContactScreen contact={selectedContact} onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'activities' && <ActivitiesScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'health' && <HealthScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'faith' && <FaithScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'myday' && <MyDayScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {currentScreen === 'browse' && <BrowseScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
-        {activeCall && <VideoCallScreen meeting={activeCall.meeting} attendee={activeCall.attendee} callerName={activeCall.callerName} onEnd={() => { setActiveCall(null); setCurrentScreen('home'); fetch(API_BASE.replace('/api','') + '/api/video/end', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({residentId: residentSession?.id}) }); }} onNavigate={setCurrentScreen} />}
-      {medReminder && !activeCall && !incomingCall && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 8500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 24, padding: 32, maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,0.3)' }}>
-            <div style={{ fontSize: 60, marginBottom: 12 }}>💊</div>
-            <h2 style={{ fontSize: 24, fontWeight: 700, color: '#0f766e', marginBottom: 8 }}>Medication Time</h2>
-            <p style={{ fontSize: 20, color: '#374151', marginBottom: 4 }}>{medReminder.name}</p>
-            {medReminder.dosage && <p style={{ fontSize: 16, color: '#6b7280' }}>{medReminder.dosage}</p>}
-            <p style={{ fontSize: 14, color: '#9ca3af', marginTop: 8 }}>{medReminder.timeSlot}</p>
-            <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'center' }}>
-              <button onClick={async () => {
-                try { await fetch('https://api.meetwarda.com/api/medications/' + medReminder.medicationId + '/taken', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recordedBy: 'tablet' }) }); } catch {}
-                setMedReminder(null);
-              }} style={{ padding: '14px 28px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 12, fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>✓ Taken</button>
-              <button onClick={async () => {
-                try { await fetch('https://api.meetwarda.com/api/medications/' + medReminder.medicationId + '/skipped', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recordedBy: 'tablet', reason: 'Declined' }) }); } catch {}
-                setMedReminder(null);
-              }} style={{ padding: '14px 28px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 12, fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>Skip</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {proactiveMsg && !activeCall && !incomingCall && (
-        <div style={{ position: 'fixed', bottom: 20, left: 20, right: 20, background: 'linear-gradient(135deg, #0d9488, #0891b2)', borderRadius: 16, padding: '20px 24px', color: '#fff', zIndex: 8000, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }} onClick={() => { setProactiveMsg(null); setCurrentScreen('voice'); }}>
-          <div style={{ fontSize: 40 }}>🌹</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>Warda says...</div>
-            <div style={{ fontSize: 16, opacity: 0.95 }}>{proactiveMsg.text}</div>
-          </div>
-          <button onClick={(e) => { e.stopPropagation(); setProactiveMsg(null); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: 36, height: 36, color: '#fff', fontSize: 18, cursor: 'pointer' }}>✕</button>
-        </div>
-      )}
-      {incomingCall && !activeCall && <IncomingCallOverlay callerName={incomingCall.callerName} onAnswer={() => { setActiveCall(incomingCall); setIncomingCall(null); }} onDecline={() => { setIncomingCall(null); fetch(API_BASE.replace('/api','') + '/api/video/end', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({residentId: residentSession?.id}) }); }} />}
-      {currentScreen === 'settings' && <SettingsScreen onNavigate={handleNavigate} onHelp={handleHelp} helpConfirmed={helpConfirmed} />}
+        {currentScreen === 'home' && <HomeScreen onNavigate={handleNavigate} time={timeString} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />}
+        {currentScreen === 'talk' && <TalkScreen onNavigate={handleNavigate} residentName={resident?.preferredName || resident?.firstName || 'Friend'} residentId={resident?.id || 'guest'} />}
+        {currentScreen === 'voice' && <VoiceScreen onNavigate={handleNavigate} residentName={resident?.preferredName || resident?.firstName || 'Friend'} residentId={resident?.id || 'guest'} />}
+        {currentScreen === 'family' && <FamilyScreen onNavigate={handleNavigate} onSelectContact={handleSelectContact} />}
+        {currentScreen === 'contact' && selectedContact && <ContactScreen contact={selectedContact} onNavigate={handleNavigate} />}
+        {currentScreen === 'activities' && <ActivitiesScreen onNavigate={handleNavigate} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />}
+        {currentScreen === 'health' && <HealthScreen onNavigate={handleNavigate} />}
+        {currentScreen === 'faith' && <FaithScreen onNavigate={handleNavigate} />}
+        {currentScreen === 'myday' && <MyDayScreen onNavigate={handleNavigate} />}
+        {currentScreen === 'browse' && <BrowseScreen onNavigate={handleNavigate} />}
+        {currentScreen === 'music' && <MusicScreen onNavigate={handleNavigate} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />}
+        {currentScreen === 'games' && <GamesScreen onNavigate={handleNavigate} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />}
+        {currentScreen === 'exercises' && <ExercisesScreen onNavigate={handleNavigate} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />}
       </AnimatePresence>
     </div>
   );
