@@ -205,6 +205,7 @@ model CareHome {
   tablets          Tablet[]
   adminUsers       AdminUser[]
   commissionPayouts CommissionPayout[]
+  deviceCodes       DeviceCode[]
 
   @@index([status])
 }
@@ -220,6 +221,9 @@ model User {
   dateOfBirth   DateTime?
   roomNumber    String?
   pin           String?
+  pinChangedAt    DateTime?
+  pinResetAt      DateTime?
+  pinResetBy      String?
   photoUrl      String?
   status        ResidentStatus @default(ACTIVE)
   accountType   AccountType    @default(B2B)
@@ -680,4 +684,24 @@ model SystemSetting {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// Device Activation Codes - for tablet setup
+model DeviceCode {
+  id              String    @id @default(uuid())
+  code            String    @unique // e.g., "SUNNY-ABCD-1234-EFGH"
+  careHomeId      String
+  careHome        CareHome  @relation(fields: [careHomeId], references: [id])
+  deviceName      String?   // e.g., "Lounge Tablet 1"
+  status          String    @default("ACTIVE") // ACTIVE, SUSPENDED, EXPIRED, REVOKED
+  suspendReason   String?   // "Payment overdue", "Subscription cancelled"
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime?
+  activatedAt     DateTime?
+  lastValidatedAt DateTime?
+  createdBy       String?   // Admin who created it
+  
+  @@index([careHomeId])
+  @@index([code])
+  @@index([status])
 }

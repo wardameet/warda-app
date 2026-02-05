@@ -515,3 +515,39 @@ router.get('/:id/profile/preview', async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /api/admin/residents/:id/reset-pin - Reset resident's PIN to 1234
+router.post('/:id/reset-pin', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    
+    const user = await prisma.user.findUnique({ where: { id } });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Resident not found' });
+    }
+    
+    // Check access for non-super admins
+    if (req.adminUser.role !== 'SUPER_ADMIN' && user.careHomeId !== req.careHomeId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    await prisma.user.update({
+      where: { id },
+      data: {
+        pin: '1234',
+        pinResetAt: new Date(),
+        pinResetBy: req.adminUser.id,
+        pinChangedAt: null // Force PIN change on next login
+      }
+    });
+    
+    await logAudit(req.adminUser.id, 'RESET_PIN', 'User', id, { reason }, req.ip);
+    
+    res.json({ success: true, message: 'PIN reset to 1234. User will be prompted to change it on next login.' });
+  } catch (error) {
+    console.error('Reset PIN error:', error);
+    res.status(500).json({ error: 'Failed to reset PIN' });
+  }
+});

@@ -52,6 +52,8 @@ const adminOrderRoutes = require('./routes/admin/orders');
 const adminCommissionRoutes = require('./routes/admin/commissions');
 const adminInvoiceRoutes = require('./routes/admin/invoices');
 const emailRoutes = require("./routes/admin/emails");
+const deviceCodesRoutes = require('./routes/admin/deviceCodes');
+const tabletAuthRoutes = require('./routes/tabletAuth');
 
 // Import services
 const { initializeRedis } = require('./services/redis');
@@ -85,6 +87,7 @@ app.set('io', io);
 
 // Routes
 app.use('/api/health', healthRoutes);
+app.use('/api/tablet', tabletAuthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/conversation', conversationRoutes);
 app.use('/api/family', familyRoutes);
@@ -100,6 +103,7 @@ app.use('/api/video', videoRoutes);
 app.use('/api/browse', browseRoutes);
 app.use('/api/medications', medicationsRoutes);
 app.use('/api/health-logs', healthLogRoutes);
+app.use('/api/tablet', tabletAuthRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/activities', activitiesRoutes);
 app.use('/api/calendar', calendarRoutes);
@@ -115,6 +119,7 @@ app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/commissions', adminCommissionRoutes);
 app.use('/api/admin/invoices', adminInvoiceRoutes);
 app.use('/api/admin/emails', emailRoutes);
+app.use('/api/admin/device-codes', deviceCodesRoutes);
 app.use('/api/admin/residents', adminResidentRoutes);
 app.use('/api/admin/staff', adminStaffRoutes);
 app.use('/api/admin', adminFamilyRoutes);
