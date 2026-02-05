@@ -1,4 +1,7 @@
 import { useWarda } from './useWarda';
+import { useVideoCall, IncomingCall, ActiveCall } from './useVideoCall';
+import { IncomingCallOverlay, VideoCallScreen } from './VideoCallComponents';
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -6,7 +9,7 @@ import axios from 'axios';
 const API_URL = 'https://api.meetwarda.com/api';
 
 // ============ TYPES ============
-type Screen = 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith' | 'music' | 'games' | 'exercises';
+type Screen = 'home' | 'talk' | 'voice' | 'family' | 'contact' | 'activities' | 'health' | 'myday' | 'browse' | 'faith' | 'music' | 'games' | 'exercises' | 'videocall';
 type AuthScreen = 'setup' | 'login' | 'change-pin' | 'authenticated';
 
 interface Resident {
@@ -1309,6 +1312,25 @@ function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  // Video call functionality
+  const { incomingCall, activeCall, isInCall, answerCall, declineCall, endCall } = useVideoCall(resident?.id);
+
+  const handleAnswerCall = async () => {
+    const callData = await answerCall();
+    if (callData) {
+      setCurrentScreen('videocall');
+    }
+  };
+
+  const handleDeclineCall = () => {
+    declineCall();
+  };
+
+  const handleEndCall = () => {
+    endCall();
+    setCurrentScreen('home');
+  };
+
 
   // Check for existing activation on mount
   useEffect(() => {
@@ -1458,7 +1480,18 @@ function App() {
         {currentScreen === 'music' && <MusicScreen onNavigate={handleNavigate} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />}
         {currentScreen === 'games' && <GamesScreen onNavigate={handleNavigate} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />}
         {currentScreen === 'exercises' && <ExercisesScreen onNavigate={handleNavigate} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />}
+        {currentScreen === 'videocall' && activeCall && (
+          <VideoCallScreen callerName={activeCall.callerName} onEndCall={handleEndCall} />
+        )}
       </AnimatePresence>
+      {incomingCall && (
+        <IncomingCallOverlay
+          callerName={incomingCall.callerName}
+          callerType={incomingCall.callerType}
+          onAnswer={handleAnswerCall}
+          onDecline={handleDeclineCall}
+        />
+      )}
     </div>
   );
 }
