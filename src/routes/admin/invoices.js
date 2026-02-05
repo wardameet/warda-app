@@ -1,25 +1,36 @@
 // ============================================================
 // WARDA - Invoice Management Routes
 // Handles invoice generation and tracking
+// SUPER_ADMIN for all, Care homes see only their own
 // ============================================================
 
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { adminAuth, requireRole, logAudit } = require('../../middleware/adminAuth');
+
+// Apply auth middleware to all routes
+router.use(adminAuth);
 
 // GET /api/admin/invoices - Get all invoices
 router.get('/', async (req, res) => {
   try {
-    const { status, careHomeId, startDate, endDate } = req.query;
+    const { status, startDate, endDate } = req.query;
     
     const where = {};
     if (status) where.status = status;
-    if (careHomeId) where.careHomeId = careHomeId;
     if (startDate || endDate) {
       where.issueDate = {};
       if (startDate) where.issueDate.gte = new Date(startDate);
       if (endDate) where.issueDate.lte = new Date(endDate);
+    }
+    
+    // DATA SEPARATION: Non-SUPER_ADMIN only sees their care home's invoices
+    if (req.adminRole !== 'SUPER_ADMIN') {
+      where.careHomeId = req.careHomeId;
+    } else if (req.query.careHomeId) {
+      where.careHomeId = req.query.careHomeId;
     }
     
     const invoices = await prisma.invoice.findMany({
@@ -42,12 +53,11 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/admin/invoices/generate - Generate invoices for care homes
-router.post('/generate', async (req, res) => {
+// POST /api/admin/invoices/generate - Generate invoices for care homes (SUPER_ADMIN only)
+router.post('/generate', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
-    const { period } = req.body; // Format: "2026-02"
+    const { period } = req.body;
     
-    // Get all care homes with active residents where care home pays
     const careHomes = await prisma.careHome.findMany({
       where: { status: 'ACTIVE' },
       include: {
@@ -68,11 +78,10 @@ router.post('/generate', async (req, res) => {
       if (ch.users.length === 0) continue;
       
       const pricePerResident = ch.subscriptionTier === 'PREMIUM' ? 35 : 25;
-      const amount = ch.users.length * pricePerResident * 100; // In pence
+      const amount = ch.users.length * pricePerResident * 100;
       
-      // Generate invoice number
       const count = await prisma.invoice.count({ where: { careHomeId: ch.id } });
-      const invoiceNumber = `INV-${ch.name.substring(0, 3).toUpperCase()}-${year}${month}-${(count + 1).toString().padStart(3, '0')}`;
+      const invoiceNumber = 'INV-' + ch.name.substring(0, 3).toUpperCase() + '-' + year + month + '-' + (count + 1).toString().padStart(3, '0');
       
       const invoice = await prisma.invoice.create({
         data: {
@@ -82,18 +91,20 @@ router.post('/generate', async (req, res) => {
           status: 'DRAFT',
           lineItems: {
             items: [{
-              description: `Warda Service - ${ch.users.length} residents`,
+              description: 'Warda Service - ' + ch.users.length + ' residents',
               quantity: ch.users.length,
               unitPrice: pricePerResident * 100,
               total: amount
             }]
           },
-          dueDate: new Date(parseInt(year), parseInt(month), 15) // 15th of next month
+          dueDate: new Date(parseInt(year), parseInt(month), 15)
         }
       });
       
       invoices.push(invoice);
     }
+    
+    await logAudit(req.adminUser.id, 'GENERATE_INVOICES', 'Invoice', null, { period, count: invoices.length }, req.ip);
     
     res.json({ success: true, invoices, count: invoices.length });
   } catch (error) {
@@ -102,8 +113,8 @@ router.post('/generate', async (req, res) => {
   }
 });
 
-// POST /api/admin/invoices/:id/send - Send invoice
-router.post('/:id/send', async (req, res) => {
+// POST /api/admin/invoices/:id/send - Send invoice (SUPER_ADMIN only)
+router.post('/:id/send', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -114,6 +125,8 @@ router.post('/:id/send', async (req, res) => {
     
     // TODO: Send email with invoice PDF
     
+    await logAudit(req.adminUser.id, 'SEND_INVOICE', 'Invoice', id, {}, req.ip);
+    
     res.json({ success: true, invoice, message: 'Invoice sent' });
   } catch (error) {
     console.error('Send invoice error:', error);
@@ -121,8 +134,8 @@ router.post('/:id/send', async (req, res) => {
   }
 });
 
-// POST /api/admin/invoices/:id/mark-paid - Mark invoice as paid
-router.post('/:id/mark-paid', async (req, res) => {
+// POST /api/admin/invoices/:id/mark-paid - Mark invoice as paid (SUPER_ADMIN only)
+router.post('/:id/mark-paid', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { reference } = req.body;
@@ -135,6 +148,8 @@ router.post('/:id/mark-paid', async (req, res) => {
       }
     });
     
+    await logAudit(req.adminUser.id, 'MARK_INVOICE_PAID', 'Invoice', id, { reference }, req.ip);
+    
     res.json({ success: true, invoice });
   } catch (error) {
     console.error('Mark invoice paid error:', error);
@@ -142,8 +157,8 @@ router.post('/:id/mark-paid', async (req, res) => {
   }
 });
 
-// POST /api/admin/invoices/check-overdue - Check and mark overdue invoices
-router.post('/check-overdue', async (req, res) => {
+// POST /api/admin/invoices/check-overdue - Check and mark overdue invoices (SUPER_ADMIN only)
+router.post('/check-overdue', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const now = new Date();
     

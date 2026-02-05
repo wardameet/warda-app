@@ -1,12 +1,17 @@
 // ============================================================
 // WARDA - Commission Management Routes
 // Handles referral commission tracking and payouts
+// SUPER_ADMIN ONLY - Care homes can only view their own earnings
 // ============================================================
 
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { adminAuth, requireRole, logAudit } = require('../../middleware/adminAuth');
+
+// Apply auth middleware to all routes
+router.use(adminAuth);
 
 // Commission tier thresholds
 const COMMISSION_TIERS = {
@@ -16,9 +21,8 @@ const COMMISSION_TIERS = {
   PLATINUM: { min: 51, max: Infinity, rate: 0.25 }
 };
 
-const BASE_PRICE = 25; // £25 per resident
+const BASE_PRICE = 25;
 
-// Helper to determine tier from referral count
 function getTierFromCount(count) {
   if (count >= 51) return 'PLATINUM';
   if (count >= 26) return 'GOLD';
@@ -29,22 +33,45 @@ function getTierFromCount(count) {
 // GET /api/admin/commissions - Get all care homes with commission data
 router.get('/', async (req, res) => {
   try {
-    const careHomes = await prisma.careHome.findMany({
-      where: { status: 'ACTIVE' },
-      include: {
-        users: {
-          where: { 
-            isCommissionEligible: true,
-            orderStatus: 'ACTIVE',
-            billingType: 'FAMILY_PAYS'
+    let careHomes;
+    
+    // DATA SEPARATION: Non-SUPER_ADMIN only sees their own care home
+    if (req.adminRole === 'SUPER_ADMIN') {
+      careHomes = await prisma.careHome.findMany({
+        where: { status: 'ACTIVE' },
+        include: {
+          users: {
+            where: { 
+              isCommissionEligible: true,
+              orderStatus: 'ACTIVE',
+              billingType: 'FAMILY_PAYS'
+            }
+          },
+          commissionPayouts: {
+            orderBy: { createdAt: 'desc' },
+            take: 3
           }
-        },
-        commissionPayouts: {
-          orderBy: { createdAt: 'desc' },
-          take: 3
         }
-      }
-    });
+      });
+    } else {
+      // Care home manager sees only their own
+      careHomes = await prisma.careHome.findMany({
+        where: { id: req.careHomeId, status: 'ACTIVE' },
+        include: {
+          users: {
+            where: { 
+              isCommissionEligible: true,
+              orderStatus: 'ACTIVE',
+              billingType: 'FAMILY_PAYS'
+            }
+          },
+          commissionPayouts: {
+            orderBy: { createdAt: 'desc' },
+            take: 3
+          }
+        }
+      });
+    }
     
     const result = careHomes.map(ch => {
       const referralCount = ch.users.length;
@@ -82,6 +109,11 @@ router.get('/', async (req, res) => {
 router.get('/:careHomeId', async (req, res) => {
   try {
     const { careHomeId } = req.params;
+    
+    // DATA SEPARATION: Non-SUPER_ADMIN can only see their own care home
+    if (req.adminRole !== 'SUPER_ADMIN' && careHomeId !== req.careHomeId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     
     const careHome = await prisma.careHome.findUnique({
       where: { id: careHomeId },
@@ -138,10 +170,10 @@ router.get('/:careHomeId', async (req, res) => {
   }
 });
 
-// POST /api/admin/commissions/calculate - Calculate commissions for a period
-router.post('/calculate', async (req, res) => {
+// POST /api/admin/commissions/calculate - Calculate commissions (SUPER_ADMIN only)
+router.post('/calculate', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
-    const { period } = req.body; // Format: "2026-02"
+    const { period } = req.body;
     
     const careHomes = await prisma.careHome.findMany({
       where: { status: 'ACTIVE' },
@@ -187,10 +219,10 @@ router.post('/calculate', async (req, res) => {
   }
 });
 
-// POST /api/admin/commissions/payout - Create payout records
-router.post('/payout', async (req, res) => {
+// POST /api/admin/commissions/payout - Create payout records (SUPER_ADMIN only)
+router.post('/payout', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
-    const { period, payouts } = req.body; // payouts: [{careHomeId, amount, referrals, rate}]
+    const { period, payouts } = req.body;
     
     const created = [];
     
@@ -206,7 +238,6 @@ router.post('/payout', async (req, res) => {
         }
       });
       
-      // Update care home balance
       await prisma.careHome.update({
         where: { id: payout.careHomeId },
         data: {
@@ -217,6 +248,8 @@ router.post('/payout', async (req, res) => {
       created.push(record);
     }
     
+    await logAudit(req.adminUser.id, 'CREATE_COMMISSION_PAYOUTS', 'CommissionPayout', null, { period, count: created.length }, req.ip);
+    
     res.json({ success: true, payouts: created });
   } catch (error) {
     console.error('Create payouts error:', error);
@@ -224,8 +257,8 @@ router.post('/payout', async (req, res) => {
   }
 });
 
-// POST /api/admin/commissions/payout/:id/mark-paid - Mark payout as paid
-router.post('/payout/:id/mark-paid', async (req, res) => {
+// POST /api/admin/commissions/payout/:id/mark-paid - Mark payout as paid (SUPER_ADMIN only)
+router.post('/payout/:id/mark-paid', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { reference } = req.body;
@@ -239,7 +272,6 @@ router.post('/payout/:id/mark-paid', async (req, res) => {
       }
     });
     
-    // Update care home totals
     await prisma.careHome.update({
       where: { id: payout.careHomeId },
       data: {
@@ -247,6 +279,8 @@ router.post('/payout/:id/mark-paid', async (req, res) => {
         commissionBalance: { decrement: payout.amount }
       }
     });
+    
+    await logAudit(req.adminUser.id, 'MARK_PAYOUT_PAID', 'CommissionPayout', id, { reference, amount: payout.amount }, req.ip);
     
     res.json({ success: true, payout });
   } catch (error) {
@@ -261,10 +295,17 @@ router.put('/:careHomeId/bank-details', async (req, res) => {
     const { careHomeId } = req.params;
     const { bankAccountName, bankAccountNumber, bankSortCode } = req.body;
     
+    // DATA SEPARATION: Non-SUPER_ADMIN can only update their own care home
+    if (req.adminRole !== 'SUPER_ADMIN' && careHomeId !== req.careHomeId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
     await prisma.careHome.update({
       where: { id: careHomeId },
       data: { bankAccountName, bankAccountNumber, bankSortCode }
     });
+    
+    await logAudit(req.adminUser.id, 'UPDATE_BANK_DETAILS', 'CareHome', careHomeId, {}, req.ip);
     
     res.json({ success: true, message: 'Bank details updated' });
   } catch (error) {

@@ -7,17 +7,27 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { adminAuth, requireRole, scopeToCareHome, logAudit } = require('../../middleware/adminAuth');
+
+// Apply auth middleware to all routes
+router.use(adminAuth);
 
 // GET /api/admin/orders - Get all orders with filters
 router.get('/', async (req, res) => {
   try {
-    const { status, billingType, careHomeId, accountType } = req.query;
+    const { status, billingType, accountType } = req.query;
     
     const where = {};
     if (status) where.orderStatus = status;
     if (billingType) where.billingType = billingType;
-    if (careHomeId) where.careHomeId = careHomeId;
     if (accountType) where.accountType = accountType;
+    
+    // DATA SEPARATION: Non-SUPER_ADMIN only sees their care home
+    if (req.adminRole !== 'SUPER_ADMIN') {
+      where.careHomeId = req.careHomeId;
+    } else if (req.query.careHomeId) {
+      where.careHomeId = req.query.careHomeId;
+    }
     
     const orders = await prisma.user.findMany({
       where,
@@ -46,8 +56,8 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/admin/orders/queue - Get actionable orders (Super Admin view)
-router.get('/queue', async (req, res) => {
+// GET /api/admin/orders/queue - Get actionable orders (Super Admin only)
+router.get('/queue', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const waitingPayment = await prisma.user.findMany({
       where: { orderStatus: 'WAITING_PAYMENT' },
@@ -93,8 +103,8 @@ router.get('/queue', async (req, res) => {
   }
 });
 
-// POST /api/admin/orders/:id/generate-credentials - Generate PIN and temp password
-router.post('/:id/generate-credentials', async (req, res) => {
+// POST /api/admin/orders/:id/generate-credentials - Generate PIN and temp password (Super Admin only)
+router.post('/:id/generate-credentials', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -111,10 +121,10 @@ router.post('/:id/generate-credentials', async (req, res) => {
     });
     
     // If there's a primary family contact, create/update their AdminUser with temp password
-    if (user.familyContacts[0]) {
+    if (user.familyContacts[0] && user.familyContacts[0].email) {
       const family = user.familyContacts[0];
       await prisma.adminUser.upsert({
-        where: { email: family.email || `family_${family.id}@temp.meetwarda.com` },
+        where: { email: family.email },
         update: { 
           tempPassword,
           mustChangePassword: true,
@@ -132,6 +142,8 @@ router.post('/:id/generate-credentials', async (req, res) => {
       });
     }
     
+    await logAudit(req.adminUser.id, 'GENERATE_CREDENTIALS', 'User', id, { pin: '****' }, req.ip);
+    
     res.json({ 
       success: true, 
       pin, 
@@ -144,8 +156,8 @@ router.post('/:id/generate-credentials', async (req, res) => {
   }
 });
 
-// POST /api/admin/orders/:id/send-welcome-email - Send welcome email
-router.post('/:id/send-welcome-email', async (req, res) => {
+// POST /api/admin/orders/:id/send-welcome-email - Send welcome email (Super Admin only)
+router.post('/:id/send-welcome-email', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { recipientEmail, pin, tempPassword } = req.body;
@@ -163,7 +175,6 @@ router.post('/:id/send-welcome-email', async (req, res) => {
     }
     
     // TODO: Integrate with actual email service (SES, SendGrid, etc.)
-    // For now, just update the status
     
     await prisma.user.update({
       where: { id },
@@ -173,22 +184,12 @@ router.post('/:id/send-welcome-email', async (req, res) => {
       }
     });
     
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        adminUserId: req.adminUser?.id || 'system',
-        action: 'SEND_WELCOME_EMAIL',
-        entityType: 'User',
-        entityId: id,
-        details: { recipientEmail, pin: '****', sentAt: new Date() }
-      }
-    });
+    await logAudit(req.adminUser.id, 'SEND_WELCOME_EMAIL', 'User', id, { recipientEmail }, req.ip);
     
     res.json({ 
       success: true, 
-      message: `Welcome email would be sent to ${recipientEmail}`,
-      // In production, remove these from response
-      debug: { pin, tempPassword, residentName: `${user.firstName} ${user.lastName}` }
+      message: 'Welcome email would be sent to ' + recipientEmail,
+      debug: { pin, tempPassword, residentName: user.firstName + ' ' + user.lastName }
     });
   } catch (error) {
     console.error('Send welcome email error:', error);
@@ -196,8 +197,8 @@ router.post('/:id/send-welcome-email', async (req, res) => {
   }
 });
 
-// POST /api/admin/orders/:id/send-payment-link - Send Stripe payment link
-router.post('/:id/send-payment-link', async (req, res) => {
+// POST /api/admin/orders/:id/send-payment-link - Send Stripe payment link (Super Admin only)
+router.post('/:id/send-payment-link', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { recipientEmail, amount, planName } = req.body;
@@ -212,7 +213,6 @@ router.post('/:id/send-payment-link', async (req, res) => {
     }
     
     // TODO: Create Stripe payment link
-    // const paymentLink = await stripe.paymentLinks.create({...})
     
     await prisma.user.update({
       where: { id },
@@ -223,21 +223,12 @@ router.post('/:id/send-payment-link', async (req, res) => {
       }
     });
     
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        adminUserId: req.adminUser?.id || 'system',
-        action: 'SEND_PAYMENT_LINK',
-        entityType: 'User',
-        entityId: id,
-        details: { recipientEmail, amount, planName, sentAt: new Date() }
-      }
-    });
+    await logAudit(req.adminUser.id, 'SEND_PAYMENT_LINK', 'User', id, { recipientEmail, amount }, req.ip);
     
     res.json({ 
       success: true, 
-      message: `Payment link would be sent to ${recipientEmail}`,
-      paymentLink: 'https://checkout.stripe.com/placeholder' // Replace with actual link
+      message: 'Payment link would be sent to ' + recipientEmail,
+      paymentLink: 'https://checkout.stripe.com/placeholder'
     });
   } catch (error) {
     console.error('Send payment link error:', error);
@@ -245,8 +236,8 @@ router.post('/:id/send-payment-link', async (req, res) => {
   }
 });
 
-// POST /api/admin/orders/:id/mark-paid - Mark order as paid (manual)
-router.post('/:id/mark-paid', async (req, res) => {
+// POST /api/admin/orders/:id/mark-paid - Mark order as paid (Super Admin only)
+router.post('/:id/mark-paid', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { reference } = req.body;
@@ -259,16 +250,7 @@ router.post('/:id/mark-paid', async (req, res) => {
       }
     });
     
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        adminUserId: req.adminUser?.id || 'system',
-        action: 'MARK_ORDER_PAID',
-        entityType: 'User',
-        entityId: id,
-        details: { reference, markedAt: new Date() }
-      }
-    });
+    await logAudit(req.adminUser.id, 'MARK_ORDER_PAID', 'User', id, { reference }, req.ip);
     
     res.json({ success: true, message: 'Order marked as paid' });
   } catch (error) {
@@ -277,8 +259,8 @@ router.post('/:id/mark-paid', async (req, res) => {
   }
 });
 
-// POST /api/admin/orders/:id/mark-dispatched - Mark tablet as dispatched
-router.post('/:id/mark-dispatched', async (req, res) => {
+// POST /api/admin/orders/:id/mark-dispatched - Mark tablet as dispatched (Super Admin only)
+router.post('/:id/mark-dispatched', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     const { trackingNumber, tabletId } = req.body;
@@ -302,16 +284,7 @@ router.post('/:id/mark-dispatched', async (req, res) => {
       });
     }
     
-    // Log the action
-    await prisma.auditLog.create({
-      data: {
-        adminUserId: req.adminUser?.id || 'system',
-        action: 'MARK_DISPATCHED',
-        entityType: 'User',
-        entityId: id,
-        details: { trackingNumber, tabletId, dispatchedAt: new Date() }
-      }
-    });
+    await logAudit(req.adminUser.id, 'MARK_DISPATCHED', 'User', id, { trackingNumber, tabletId }, req.ip);
     
     res.json({ success: true, message: 'Order marked as dispatched' });
   } catch (error) {
@@ -320,8 +293,8 @@ router.post('/:id/mark-dispatched', async (req, res) => {
   }
 });
 
-// POST /api/admin/orders/:id/activate - Mark as active (tablet received)
-router.post('/:id/activate', async (req, res) => {
+// POST /api/admin/orders/:id/activate - Mark as active (Super Admin only)
+router.post('/:id/activate', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -340,6 +313,8 @@ router.post('/:id/activate', async (req, res) => {
         data: { status: 'ACTIVE' }
       });
     }
+    
+    await logAudit(req.adminUser.id, 'ACTIVATE_USER', 'User', id, {}, req.ip);
     
     res.json({ success: true, message: 'User activated' });
   } catch (error) {
