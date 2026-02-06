@@ -186,34 +186,33 @@ router.post('/start', async (req, res) => {
     let greeting;
     if (userId) {
       const profile = await getResidentProfile(userId);
-      if (profile && profile.greetingStyle) {
-        greeting = profile.greetingStyle;
-      } else {
-        const hour = new Date().getHours();
-        const name = (profile && profile.preferredName) || residentName || 'there';
-        var timeGreeting = 'Hello';
-        if (hour < 12) timeGreeting = 'Good morning';
-        else if (hour < 17) timeGreeting = 'Good afternoon';
-        else timeGreeting = 'Good evening';
-        if (profile && profile.useGaelic) {
-          if (hour < 12) timeGreeting = 'Madainn mhath';
-          else if (hour < 17) timeGreeting = 'Feasgar math';
-          else timeGreeting = 'Feasgar math';
+      if (profile) {
+        const { getTimeGreeting } = require('../services/claude');
+        const tg = getTimeGreeting(profile);
+        if (tg) {
+          greeting = tg;
+        } else if (profile.greetingStyle) {
+          greeting = profile.greetingStyle;
+        } else {
+          const hour = new Date().getHours();
+          const nm = profile.preferredName || residentName || 'there';
+          let g = 'Hello';
+          if (hour < 12) g = 'Good morning';
+          else if (hour < 17) g = 'Good afternoon';
+          else g = 'Good evening';
+          if (profile.useGaelic) { g = hour < 12 ? 'Madainn mhath' : 'Feasgar math'; }
+          greeting = g + ', ' + nm + '! It is Warda here. How are you feeling today, dear?';
         }
-        greeting = timeGreeting + ', ' + name + '! It is Warda here. How are you feeling today, dear?';
+      } else {
+        greeting = 'Hello there! It is Warda. How are you feeling today?';
       }
     } else {
       greeting = 'Hello there! It is Warda. How are you feeling today?';
     }
-    res.json({
-      success: true,
-      greeting,
-      sessionId: 'session_' + (userId || 'anon') + '_' + Date.now()
-    });
+    res.json({ success: true, greeting, sessionId: 'session_' + (userId || 'anon') + '_' + Date.now() });
   } catch (error) {
-    console.error('Start conversation error:', error);
+    console.error('Start error:', error);
     res.status(500).json({ success: false, error: 'Failed to start conversation' });
   }
 });
-
 module.exports = router;
