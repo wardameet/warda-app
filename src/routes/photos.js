@@ -1,297 +1,219 @@
-/**
- * WARDA - Photo Sharing API
- * ==========================
- * Family uploads photos → S3 (presigned URL) → notify tablet via WebSocket
- * Tablet fetches photo gallery from this API
- * 
- * Routes:
- *   POST   /api/photos/upload-url    - Get presigned S3 upload URL
- *   POST   /api/photos/confirm       - Confirm upload + notify tablet
- *   GET    /api/photos/:residentId    - Get photo gallery for resident
- *   GET    /api/photos/view/:key      - Get presigned download URL
- *   DELETE /api/photos/:photoId       - Delete a photo
- */
+// ============================================================
+// WARDA — Photo Routes
+// Upload, view, manage photos for residents
+// Family uploads → S3 → Warda shows on tablet
+// ============================================================
 
 const express = require('express');
 const router = express.Router();
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const multer = require('multer');
 const { PrismaClient } = require('@prisma/client');
-const { v4: uuidv4 } = require('uuid');
-
 const prisma = new PrismaClient();
+const { uploadPhoto, getSignedPhotoUrl, listResidentPhotos, deletePhoto, getUploadSignedUrl } = require('../services/s3');
 
-// S3 Client
-const s3 = new S3Client({ region: process.env.AWS_REGION || 'eu-west-2' });
-const BUCKET = process.env.S3_BUCKET || 'warda-media-production';
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files allowed'), false);
+    }
+  }
+});
 
-/**
- * POST /api/photos/upload-url
- * Generate a presigned URL for family to upload directly to S3
- * 
- * Body: { residentId, senderId, senderName, fileName, fileType, caption? }
- * Returns: { uploadUrl, photoKey, photoId }
- */
-router.post('/upload-url', async (req, res) => {
+// POST /api/photos/upload — Family uploads a photo for resident
+router.post('/upload', upload.single('photo'), async (req, res) => {
   try {
-    const { residentId, senderId, senderName, fileName, fileType, caption } = req.body;
+    const { residentId, caption, uploadedBy } = req.body;
 
-    if (!residentId || !senderId || !fileName || !fileType) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'residentId, senderId, fileName, and fileType are required' 
-      });
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No photo provided' });
+    }
+    if (!residentId) {
+      return res.status(400).json({ success: false, error: 'residentId required' });
     }
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic'];
-    if (!allowedTypes.includes(fileType)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'File type not allowed. Use JPEG, PNG, GIF, or WebP' 
-      });
+    // Get resident's care home
+    const resident = await prisma.user.findUnique({
+      where: { id: residentId },
+      select: { id: true, careHomeId: true, preferredName: true, firstName: true }
+    });
+
+    if (!resident) {
+      return res.status(404).json({ success: false, error: 'Resident not found' });
     }
 
-    // Generate unique key: photos/{residentId}/{uuid}.{ext}
-    const ext = fileName.split('.').pop() || 'jpg';
-    const photoId = uuidv4();
-    const photoKey = `photos/${residentId}/${photoId}.${ext}`;
+    // Upload to S3
+    const result = await uploadPhoto({
+      buffer: req.file.buffer,
+      originalName: req.file.originalname,
+      careHomeId: resident.careHomeId,
+      residentId: resident.id,
+      uploadedBy: uploadedBy || 'family',
+      caption: caption || ''
+    });
 
-    // Create presigned upload URL (valid 15 minutes)
-    const command = new PutObjectCommand({
-      Bucket: BUCKET,
-      Key: photoKey,
-      ContentType: fileType,
-      Metadata: {
-        'resident-id': residentId,
-        'sender-id': senderId,
-        'sender-name': senderName || 'Family',
-        'caption': caption || '',
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+
+    // Store photo record in database
+    const photoRecord = await prisma.message.create({
+      data: {
+        senderId: uploadedBy || 'family',
+        recipientId: residentId,
+        content: caption || 'A photo was sent to you',
+        type: 'PHOTO',
+        senderType: 'FAMILY',
+        mediaUrl: result.fullKey,
+        thumbnailUrl: result.thumbKey,
+        isDelivered: false  // Warda will deliver it conversationally
       }
     });
 
-    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 900 });
-
-    res.json({
-      success: true,
-      uploadUrl,
-      photoKey,
-      photoId,
-      expiresIn: 900
-    });
-
-  } catch (error) {
-    console.error('Upload URL error:', error);
-    res.status(500).json({ success: false, error: 'Failed to generate upload URL' });
-  }
-});
-
-
-/**
- * POST /api/photos/confirm
- * Called after family successfully uploads to S3
- * Saves metadata to DB and notifies tablet via WebSocket
- * 
- * Body: { photoId, photoKey, residentId, senderId, senderName, caption?, careHomeId? }
- */
-router.post('/confirm', async (req, res) => {
-  try {
-    const { photoId, photoKey, residentId, senderId, senderName, caption, careHomeId } = req.body;
-
-    if (!photoKey || !residentId || !senderId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'photoKey, residentId, and senderId are required' 
-      });
-    }
-
-    // Generate a presigned view URL (valid 7 days)
-    const viewCommand = new GetObjectCommand({
-      Bucket: BUCKET,
-      Key: photoKey,
-    });
-    const viewUrl = await getSignedUrl(s3, viewCommand, { expiresIn: 604800 }); // 7 days
-
-    // Save photo metadata to database
-    let savedPhoto = null;
-    try {
-      savedPhoto = await prisma.message.create({
-        data: {
-          content: caption || 'Shared a photo',
-          sender: senderId,
-          type: 'photo',
-          userId: residentId,
-          isFromWarda: false,
-          // Store photo metadata in content as JSON
-        }
-      });
-    } catch (dbErr) {
-      console.error('Failed to save photo to DB:', dbErr);
-    }
-
-    const photoPayload = {
-      id: savedPhoto?.id || photoId || `photo_${Date.now()}`,
-      photoKey,
-      photoUrl: viewUrl,
-      residentId,
-      senderId,
-      senderName: senderName || 'Family',
-      caption: caption || '',
-      timestamp: new Date().toISOString(),
-      type: 'photo'
-    };
-
-    // Notify tablet via WebSocket
+    // Notify tablet via WebSocket if connected
     const io = req.app.get('io');
     if (io) {
-      // Send to tablet - Warda will announce it
-      io.to(`tablet:${residentId}`).emit('photo:new', photoPayload);
-
-      // Notify other family members
-      io.to(`family:${residentId}`).emit('photo:new', {
-        ...photoPayload,
-        announce: false // Don't announce to other family, just show
+      io.to(`resident-${residentId}`).emit('new-photo', {
+        photoId: photoRecord.id,
+        caption,
+        from: uploadedBy || 'Your family',
+        timestamp: new Date().toISOString()
       });
-
-      console.log(`📸 Photo uploaded: ${senderName} → resident ${residentId}`);
     }
 
     res.json({
       success: true,
-      photo: photoPayload
+      photo: {
+        id: photoRecord.id,
+        key: result.fullKey,
+        thumbKey: result.thumbKey,
+        caption,
+        createdAt: photoRecord.createdAt
+      }
     });
-
   } catch (error) {
-    console.error('Photo confirm error:', error);
-    res.status(500).json({ success: false, error: 'Failed to confirm photo upload' });
+    console.error('Photo upload error:', error);
+    res.status(500).json({ success: false, error: 'Upload failed' });
   }
 });
 
-
-/**
- * GET /api/photos/:residentId
- * Get photo gallery for a resident (with fresh presigned URLs)
- * 
- * Query: ?limit=20&offset=0
- */
+// GET /api/photos/:residentId — Get all photos for resident
 router.get('/:residentId', async (req, res) => {
   try {
     const { residentId } = req.params;
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = parseInt(req.query.limit) || 50;
 
-    // Get photos from database (type = 'photo')
-    let photos = [];
-    try {
-      photos = await prisma.message.findMany({
-        where: {
-          userId: residentId,
-          type: 'photo'
-        },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip: offset
-      });
-    } catch (dbErr) {
-      console.error('Failed to fetch photos from DB:', dbErr);
+    const resident = await prisma.user.findUnique({
+      where: { id: residentId },
+      select: { id: true, careHomeId: true }
+    });
+
+    if (!resident) {
+      return res.status(404).json({ success: false, error: 'Resident not found' });
     }
 
-    // Generate fresh presigned URLs for each photo
-    const photosWithUrls = await Promise.all(
-      photos.map(async (photo) => {
-        // Try to extract photoKey from the photo record
-        // We store it in a predictable format
-        let photoUrl = '';
-        try {
-          // Generate fresh URL from S3
-          const key = `photos/${residentId}/${photo.id}.jpg`;
-          const command = new GetObjectCommand({
-            Bucket: BUCKET,
-            Key: key,
-          });
-          photoUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
-        } catch (e) {
-          // If key doesn't exist, skip
-        }
+    // Get photos from DB with signed URLs
+    const photos = await prisma.message.findMany({
+      where: {
+        recipientId: residentId,
+        type: 'PHOTO'
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
 
-        return {
-          id: photo.id,
-          caption: photo.content,
-          sender: photo.sender,
-          photoUrl,
-          timestamp: photo.createdAt,
-        };
-      })
-    );
+    // Generate signed URLs for each photo
+    const photosWithUrls = await Promise.all(photos.map(async (photo) => {
+      const fullUrl = photo.mediaUrl ? await getSignedPhotoUrl(photo.mediaUrl) : null;
+      const thumbUrl = photo.thumbnailUrl ? await getSignedPhotoUrl(photo.thumbnailUrl) : null;
+      
+      return {
+        id: photo.id,
+        caption: photo.content,
+        fullUrl: fullUrl?.url || null,
+        thumbUrl: thumbUrl?.url || null,
+        from: photo.senderId,
+        isDelivered: photo.isDelivered,
+        createdAt: photo.createdAt
+      };
+    }));
+
+    res.json({ success: true, photos: photosWithUrls });
+  } catch (error) {
+    console.error('Get photos error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get photos' });
+  }
+});
+
+// GET /api/photos/:residentId/latest — Get latest undelivered photo
+// Used by tablet to show next photo Warda should talk about
+router.get('/:residentId/latest', async (req, res) => {
+  try {
+    const { residentId } = req.params;
+
+    const photo = await prisma.message.findFirst({
+      where: {
+        recipientId: residentId,
+        type: 'PHOTO',
+        isDelivered: false
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!photo) {
+      return res.json({ success: true, photo: null });
+    }
+
+    const fullUrl = photo.mediaUrl ? await getSignedPhotoUrl(photo.mediaUrl) : null;
 
     res.json({
       success: true,
-      photos: photosWithUrls,
-      total: photos.length,
-      limit,
-      offset
+      photo: {
+        id: photo.id,
+        caption: photo.content,
+        fullUrl: fullUrl?.url || null,
+        from: photo.senderId,
+        createdAt: photo.createdAt
+      }
     });
-
   } catch (error) {
-    console.error('Gallery fetch error:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch gallery' });
+    console.error('Get latest photo error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get latest photo' });
   }
 });
 
-
-/**
- * GET /api/photos/view/:key
- * Get a fresh presigned download URL for a specific photo
- * The key should be URL-encoded
- */
-router.get('/view/:key(*)', async (req, res) => {
+// POST /api/photos/:photoId/delivered — Mark photo as delivered by Warda
+router.post('/:photoId/delivered', async (req, res) => {
   try {
-    const photoKey = req.params.key;
-
-    const command = new GetObjectCommand({
-      Bucket: BUCKET,
-      Key: photoKey,
+    await prisma.message.update({
+      where: { id: req.params.photoId },
+      data: { isDelivered: true, deliveredAt: new Date() }
     });
-
-    const viewUrl = await getSignedUrl(s3, command, { expiresIn: 3600 }); // 1 hour
-
-    res.json({
-      success: true,
-      url: viewUrl,
-      expiresIn: 3600
-    });
-
+    res.json({ success: true });
   } catch (error) {
-    console.error('Photo view error:', error);
-    res.status(500).json({ success: false, error: 'Failed to generate view URL' });
+    res.status(500).json({ success: false, error: 'Failed to mark delivered' });
   }
 });
 
-
-/**
- * DELETE /api/photos/:photoId
- * Delete a photo from S3 and database
- */
-router.delete('/:photoId', async (req, res) => {
+// GET /api/photos/signed-upload-url — Get pre-signed URL for direct upload
+router.get('/signed-upload-url', async (req, res) => {
   try {
-    const { photoId } = req.params;
-
-    // Delete from database
-    try {
-      await prisma.message.delete({
-        where: { id: photoId }
-      });
-    } catch (dbErr) {
-      console.error('Failed to delete photo from DB:', dbErr);
+    const { careHomeId, residentId, filename, contentType } = req.query;
+    
+    if (!careHomeId || !residentId) {
+      return res.status(400).json({ success: false, error: 'careHomeId and residentId required' });
     }
 
-    res.json({ success: true, deleted: photoId });
-
+    const key = `${careHomeId}/${residentId}/photos/${Date.now()}_${filename || 'photo.jpg'}`;
+    const result = await getUploadSignedUrl(key, contentType || 'image/jpeg');
+    
+    res.json(result);
   } catch (error) {
-    console.error('Photo delete error:', error);
-    res.status(500).json({ success: false, error: 'Failed to delete photo' });
+    res.status(500).json({ success: false, error: 'Failed to generate upload URL' });
   }
 });
-
 
 module.exports = router;

@@ -153,3 +153,65 @@ router.delete('/family/:id', async (req, res) => {
 });
 
 module.exports = router;
+
+// GET /api/admin/family/my-relative - Get linked resident for family user
+router.get('/family/my-relative', adminAuth, async (req, res) => {
+  try {
+    // Get the linked resident from adminUser
+    if (!req.adminUser.linkedResidentId) {
+      return res.status(404).json({ success: false, error: 'No linked resident' });
+    }
+    
+    const resident = await prisma.user.findUnique({
+      where: { id: req.adminUser.linkedResidentId },
+      include: {
+        careHome: true,
+        profile: true,
+        _count: {
+          select: {
+            conversations: true,
+            familyContacts: true
+          }
+        }
+      }
+    });
+    
+    if (!resident) {
+      return res.status(404).json({ success: false, error: 'Resident not found' });
+    }
+    
+    res.json({
+      success: true,
+      resident: {
+        id: resident.id,
+        firstName: resident.firstName,
+        lastName: resident.lastName,
+        preferredName: resident.preferredName,
+        roomNumber: resident.roomNumber,
+        status: resident.status,
+        photoUrl: resident.photoUrl,
+        careHome: resident.careHome,
+        profile: resident.profile,
+        _count: resident._count
+      }
+    });
+  } catch (err) {
+    console.error('Get my relative error:', err);
+    res.status(500).json({ success: false, error: 'Failed to load relative' });
+  }
+});
+
+// GET /api/admin/family/:residentId/messages - Get messages for a resident
+router.get('/family/:residentId/messages', async (req, res) => {
+  try {
+    const messages = await prisma.message.findMany({
+      where: { userId: req.params.residentId },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+    res.json({ success: true, messages: messages });
+  } catch (err) {
+    console.error('Get messages error:', err);
+    res.json({ success: true, messages: [] });
+  }
+});

@@ -1,114 +1,200 @@
-/**
- * S3 Service
- * Handles photo and media storage
- */
+// ============================================================
+// WARDA — S3 Media Service (Enhanced)
+// Handles photo uploads, signed URLs, lifecycle management
+// Structure: {careHomeId}/{residentId}/photos/
+// ============================================================
 
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl: getS3SignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { v4: uuidv4 } = require('uuid');
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const sharp = require('sharp');
+const crypto = require('crypto');
 
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION
+const s3 = new S3Client({
+  region: process.env.AWS_REGION || 'eu-west-2',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  }
 });
 
-const BUCKET_NAME = process.env.S3_BUCKET;
+const MEDIA_BUCKET = process.env.S3_BUCKET || 'warda-media-production';
 
-// Upload file to S3
-async function uploadToS3(file, folder = 'uploads') {
-  const key = `${folder}/${uuidv4()}-${file.originalname || 'file'}`;
+// ─── Upload Photo ───────────────────────────────────────────
+// Processes image: resize, create thumbnail, store both
+async function uploadPhoto({ buffer, originalName, careHomeId, residentId, uploadedBy, caption }) {
+  const photoId = crypto.randomUUID();
+  const timestamp = Date.now();
+  const ext = originalName?.split('.').pop() || 'jpg';
   
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: file.buffer,
-    ContentType: file.mimetype
-  });
+  const basePath = `${careHomeId}/${residentId}/photos`;
+  const fullKey = `${basePath}/${timestamp}_${photoId}.${ext}`;
+  const thumbKey = `${basePath}/thumbs/${timestamp}_${photoId}_thumb.${ext}`;
 
-  await s3Client.send(command);
-  
-  return {
-    key,
-    bucket: BUCKET_NAME,
-    url: `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
-  };
-}
+  try {
+    // Process full image (max 1200px width, preserve aspect ratio)
+    const fullImage = await sharp(buffer)
+      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
 
-// Get signed URL for private access
-async function getSignedUrl(key, expiresIn = 3600) {
-  const command = new GetObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key
-  });
+    // Create thumbnail (300px for gallery view)
+    const thumbImage = await sharp(buffer)
+      .resize(300, 300, { fit: 'cover' })
+      .jpeg({ quality: 75 })
+      .toBuffer();
 
-  const url = await getS3SignedUrl(s3Client, command, { expiresIn });
-  return url;
-}
+    // Upload full image
+    await s3.send(new PutObjectCommand({
+      Bucket: MEDIA_BUCKET,
+      Key: fullKey,
+      Body: fullImage,
+      ContentType: 'image/jpeg',
+      Metadata: {
+        'resident-id': residentId,
+        'care-home-id': careHomeId,
+        'uploaded-by': uploadedBy || 'unknown',
+        'caption': caption || '',
+        'original-name': originalName || ''
+      }
+    }));
 
-// Upload base64 image (for photos from family app)
-async function uploadBase64Image(base64Data, folder = 'photos') {
-  // Remove data URL prefix if present
-  const base64Clean = base64Data.replace(/^data:image\/\w+;base64,/, '');
-  const buffer = Buffer.from(base64Clean, 'base64');
-  
-  // Detect image type
-  let contentType = 'image/jpeg';
-  if (base64Data.includes('data:image/png')) {
-    contentType = 'image/png';
-  } else if (base64Data.includes('data:image/gif')) {
-    contentType = 'image/gif';
+    // Upload thumbnail
+    await s3.send(new PutObjectCommand({
+      Bucket: MEDIA_BUCKET,
+      Key: thumbKey,
+      Body: thumbImage,
+      ContentType: 'image/jpeg'
+    }));
+
+    return {
+      success: true,
+      photoId,
+      fullKey,
+      thumbKey,
+      fullSize: fullImage.length,
+      thumbSize: thumbImage.length,
+      caption
+    };
+  } catch (error) {
+    console.error('S3 upload error:', error);
+    return { success: false, error: error.message };
   }
-
-  const key = `${folder}/${uuidv4()}.${contentType.split('/')[1]}`;
-
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: buffer,
-    ContentType: contentType
-  });
-
-  await s3Client.send(command);
-
-  return {
-    key,
-    bucket: BUCKET_NAME
-  };
 }
 
-// Delete file from S3
-async function deleteFromS3(key) {
-  const command = new DeleteObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key
-  });
-
-  await s3Client.send(command);
-  return true;
+// ─── Get Signed URL (temporary access) ──────────────────────
+async function getSignedPhotoUrl(key, expiresIn = 3600) {
+  try {
+    const command = new GetObjectCommand({
+      Bucket: MEDIA_BUCKET,
+      Key: key
+    });
+    const url = await getSignedUrl(s3, command, { expiresIn });
+    return { success: true, url, expiresIn };
+  } catch (error) {
+    console.error('Signed URL error:', error);
+    return { success: false, error: error.message };
+  }
 }
 
-// Upload voice message
-async function uploadVoiceMessage(audioBuffer, senderId) {
-  const key = `voice-messages/${senderId}/${uuidv4()}.webm`;
+// ─── Get Upload Signed URL (for direct browser upload) ──────
+async function getUploadSignedUrl(key, contentType = 'image/jpeg', expiresIn = 300) {
+  try {
+    const command = new PutObjectCommand({
+      Bucket: MEDIA_BUCKET,
+      Key: key,
+      ContentType: contentType
+    });
+    const url = await getSignedUrl(s3, command, { expiresIn });
+    return { success: true, url, key, expiresIn };
+  } catch (error) {
+    console.error('Upload signed URL error:', error);
+    return { success: false, error: error.message };
+  }
+}
 
-  const command = new PutObjectCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    Body: audioBuffer,
-    ContentType: 'audio/webm'
-  });
+// ─── List Photos for Resident ───────────────────────────────
+async function listResidentPhotos(careHomeId, residentId, maxPhotos = 50) {
+  try {
+    const prefix = `${careHomeId}/${residentId}/photos/`;
+    
+    const result = await s3.send(new ListObjectsV2Command({
+      Bucket: MEDIA_BUCKET,
+      Prefix: prefix,
+      MaxKeys: maxPhotos
+    }));
 
-  await s3Client.send(command);
+    // Filter out thumbnails
+    const photos = (result.Contents || [])
+      .filter(obj => !obj.Key.includes('/thumbs/'))
+      .map(obj => ({
+        key: obj.Key,
+        thumbKey: obj.Key.replace('/photos/', '/photos/thumbs/').replace(/(\.\w+)$/, '_thumb$1'),
+        size: obj.Size,
+        lastModified: obj.LastModified,
+        photoId: obj.Key.split('_').pop()?.split('.')[0]
+      }))
+      .sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified));
 
-  return {
-    key,
-    bucket: BUCKET_NAME
-  };
+    return { success: true, photos, count: photos.length };
+  } catch (error) {
+    console.error('List photos error:', error);
+    return { success: false, error: error.message, photos: [] };
+  }
+}
+
+// ─── Delete Photo ───────────────────────────────────────────
+async function deletePhoto(fullKey) {
+  try {
+    // Delete full image
+    await s3.send(new DeleteObjectCommand({
+      Bucket: MEDIA_BUCKET,
+      Key: fullKey
+    }));
+
+    // Delete thumbnail
+    const thumbKey = fullKey.replace('/photos/', '/photos/thumbs/').replace(/(\.\w+)$/, '_thumb$1');
+    await s3.send(new DeleteObjectCommand({
+      Bucket: MEDIA_BUCKET,
+      Key: thumbKey
+    })).catch(() => {}); // Ignore if thumb doesn't exist
+
+    return { success: true };
+  } catch (error) {
+    console.error('Delete photo error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ─── Upload Voice Message to S3 ─────────────────────────────
+async function uploadVoiceMessage({ buffer, careHomeId, residentId, senderId, contentType = 'audio/webm' }) {
+  const msgId = crypto.randomUUID();
+  const key = `${careHomeId}/${residentId}/voice-messages/${Date.now()}_${msgId}.webm`;
+
+  try {
+    await s3.send(new PutObjectCommand({
+      Bucket: MEDIA_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+      Metadata: {
+        'resident-id': residentId,
+        'sender-id': senderId || 'unknown'
+      }
+    }));
+
+    return { success: true, key, msgId };
+  } catch (error) {
+    console.error('Voice upload error:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 module.exports = {
-  uploadToS3,
-  getSignedUrl,
-  uploadBase64Image,
-  deleteFromS3,
-  uploadVoiceMessage
+  uploadPhoto,
+  getSignedPhotoUrl,
+  getUploadSignedUrl,
+  listResidentPhotos,
+  deletePhoto,
+  uploadVoiceMessage,
+  MEDIA_BUCKET
 };

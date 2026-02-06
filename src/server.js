@@ -39,8 +39,11 @@ const billingRoutes = require('./routes/billing');
 const setupGuideRoutes = require('./routes/setupGuide');
 const complianceRoutes = require('./routes/compliance');
 const b2cSignupRoutes = require('./routes/b2cSignup');
+const transcribeRoutes = require("./routes/transcribe");
+const orientationRoutes = require("./routes/orientation");
+const familyCommsRoutes = require("./routes/familyComms");
+const { startProactiveEngine } = require("./services/proactive");
 const { startMedicationReminders } = require('./services/medicationReminder');
-const { startProactiveScheduler } = require('./services/proactive');
 
 // Admin Portal Routes
 const adminAuthRoutes = require('./routes/admin/auth');
@@ -123,6 +126,9 @@ app.use('/api/admin/device-codes', deviceCodesRoutes);
 app.use('/api/admin/residents', adminResidentRoutes);
 app.use('/api/admin/staff', adminStaffRoutes);
 app.use('/api/admin', adminFamilyRoutes);
+app.use("/api/transcribe", transcribeRoutes);
+app.use("/api/orientation", orientationRoutes);
+app.use("/api/family-comms", familyCommsRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -162,7 +168,7 @@ async function startServer() {
     console.log('✅ Socket.io initialized');
 
     const PORT = process.env.PORT || 3001;
-    startProactiveScheduler(io);
+    startProactiveEngine(io, 30);
     startMedicationReminders(io);
     httpServer.listen(PORT, () => {
       console.log(`
