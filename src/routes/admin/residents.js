@@ -471,8 +471,8 @@ router.post('/:id/profile/generate-persona', async (req, res) => {
       where: { residentId: req.params.id },
       include: {
         resident: {
-          select: { firstName: true, lastName: true, preferredName: true, dateOfBirth: true, roomNumber: true },
-          include: { familyContacts: true, careHome: { select: { name: true } } }
+
+          include: { familyContacts: true, careHome: true }
         }
       }
     });
