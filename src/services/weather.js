@@ -1,53 +1,49 @@
 // ============================================================
 // WARDA — Weather & Orientation Service
-// Provides time, date, weather, season for ambient display
-// Uses OpenWeatherMap API (free tier: 1000 calls/day)
+// Uses WeatherAPI.com (free tier: 10,000 calls/month)
 // ============================================================
 
-const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || '';
+const WEATHER_API_KEY = process.env.WEATHERAPI_KEY || '';
 
 // ─── Weather Cache (reduce API calls) ───────────────────────
 let weatherCache = {};
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 // ─── Fetch Weather Data ─────────────────────────────────────
-async function getWeather(location = 'Edinburgh,GB') {
-  // Check cache first
+async function getWeather(location = 'Edinburgh') {
   if (weatherCache[location] && (Date.now() - weatherCache[location].fetchedAt < CACHE_DURATION)) {
     return weatherCache[location].data;
   }
 
-  if (!OPENWEATHER_API_KEY) {
-    // Return sensible defaults if no API key configured
+  if (!WEATHER_API_KEY) {
     return getDefaultWeather(location);
   }
 
   try {
-    const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(location)}&appid=${OPENWEATHER_API_KEY}&units=metric`;
+    const url = `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(location)}&aqi=no`;
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       console.error(`Weather API error: ${response.status}`);
       return getDefaultWeather(location);
     }
 
     const data = await response.json();
-    
+
     const weather = {
-      temperature: Math.round(data.main.temp),
-      feelsLike: Math.round(data.main.feels_like),
-      description: data.weather[0]?.description || 'clear',
-      icon: data.weather[0]?.icon || '01d',
-      humidity: data.main.humidity,
-      windSpeed: Math.round(data.wind?.speed || 0),
-      location: data.name,
-      country: data.sys?.country || 'GB',
-      sunrise: new Date(data.sys?.sunrise * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-      sunset: new Date(data.sys?.sunset * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-      friendlyDescription: getFriendlyWeather(data)
+      temperature: Math.round(data.current.temp_c),
+      feelsLike: Math.round(data.current.feelslike_c),
+      description: data.current.condition.text,
+      icon: data.current.condition.icon,
+      humidity: data.current.humidity,
+      windSpeed: Math.round(data.current.wind_mph),
+      location: data.location.name,
+      country: data.location.country,
+      localTime: data.location.localtime,
+      isDay: data.current.is_day === 1,
+      friendlyDescription: getFriendlyWeather(data.current)
     };
 
-    // Cache it
     weatherCache[location] = { data: weather, fetchedAt: Date.now() };
     return weather;
 
@@ -58,13 +54,10 @@ async function getWeather(location = 'Edinburgh,GB') {
 }
 
 // ─── Friendly Weather Description (for elderly) ─────────────
-function getFriendlyWeather(data) {
-  const temp = Math.round(data.main.temp);
-  const desc = data.weather[0]?.main || 'Clear';
-  
+function getFriendlyWeather(current) {
+  const temp = Math.round(current.temp_c);
   let friendly = '';
-  
-  // Temperature description
+
   if (temp <= 0) friendly = "It's very cold outside today — best to stay warm indoors.";
   else if (temp <= 5) friendly = "It's quite chilly out there today.";
   else if (temp <= 10) friendly = "It's a cool day outside.";
@@ -73,13 +66,13 @@ function getFriendlyWeather(data) {
   else if (temp <= 25) friendly = "It's a warm day — perfect for sitting by a window.";
   else friendly = "It's a hot day today — make sure you drink plenty of water.";
 
-  // Weather condition
-  if (desc === 'Rain' || desc === 'Drizzle') friendly += " There's a bit of rain.";
-  else if (desc === 'Snow') friendly += " There's snow falling!";
-  else if (desc === 'Clouds') friendly += " It's a bit cloudy.";
-  else if (desc === 'Clear') friendly += " The sky is lovely and clear.";
-  else if (desc === 'Thunderstorm') friendly += " There's a storm outside, but you're safe and warm in here.";
-  else if (desc === 'Mist' || desc === 'Fog') friendly += " It's a bit misty out there.";
+  const condition = current.condition.text.toLowerCase();
+  if (condition.includes('rain') || condition.includes('drizzle')) friendly += " There's a bit of rain.";
+  else if (condition.includes('snow')) friendly += " There's snow falling!";
+  else if (condition.includes('cloud') || condition.includes('overcast')) friendly += " It's a bit cloudy.";
+  else if (condition.includes('clear') || condition.includes('sunny')) friendly += " The sky is lovely and clear.";
+  else if (condition.includes('thunder')) friendly += " There's a storm outside, but you're safe and warm in here.";
+  else if (condition.includes('mist') || condition.includes('fog')) friendly += " It's a bit misty out there.";
 
   return friendly;
 }
@@ -88,24 +81,14 @@ function getFriendlyWeather(data) {
 function getDefaultWeather(location) {
   const season = getSeason();
   const defaults = {
-    winter: { temperature: 4, description: 'cloudy', friendlyDescription: "It's a typical winter day — chilly outside." },
-    spring: { temperature: 12, description: 'partly cloudy', friendlyDescription: "It's a nice spring day — the days are getting longer." },
-    summer: { temperature: 18, description: 'clear sky', friendlyDescription: "It's a lovely summer day — nice and warm." },
-    autumn: { temperature: 10, description: 'light rain', friendlyDescription: "It's an autumn day — the leaves are changing colour." }
+    winter: { temperature: 4, description: 'Cloudy', friendlyDescription: "It's a typical winter day — chilly outside." },
+    spring: { temperature: 12, description: 'Partly cloudy', friendlyDescription: "It's a nice spring day — the days are getting longer." },
+    summer: { temperature: 18, description: 'Clear', friendlyDescription: "It's a lovely summer day — nice and warm." },
+    autumn: { temperature: 10, description: 'Light rain', friendlyDescription: "It's an autumn day — the leaves are changing colour." }
   };
 
   const d = defaults[season] || defaults.winter;
-  return {
-    ...d,
-    feelsLike: d.temperature - 2,
-    icon: '03d',
-    humidity: 70,
-    windSpeed: 10,
-    location: location.split(',')[0],
-    country: 'GB',
-    sunrise: '07:30',
-    sunset: '16:30'
-  };
+  return { ...d, feelsLike: d.temperature - 2, icon: '', humidity: 70, windSpeed: 10, location: location.split(',')[0], country: 'GB' };
 }
 
 function getSeason() {
@@ -117,18 +100,17 @@ function getSeason() {
 }
 
 // ─── Full Orientation Data ──────────────────────────────────
-// Everything the tablet needs for the ambient display
-async function getOrientationData(careHomeLocation = 'Edinburgh,GB') {
+async function getOrientationData(careHomeLocation = 'Edinburgh') {
   const now = new Date();
   const weather = await getWeather(careHomeLocation);
-  
+
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
-  
+
   const season = getSeason();
   const seasonEmojis = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' };
-  
+
   return {
     time: now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
     day: dayNames[now.getDay()],
@@ -136,9 +118,9 @@ async function getOrientationData(careHomeLocation = 'Edinburgh,GB') {
     month: monthNames[now.getMonth()],
     year: now.getFullYear(),
     fullDate: `${dayNames[now.getDay()]}, ${now.getDate()} ${monthNames[now.getMonth()]} ${now.getFullYear()}`,
-    season: season,
+    season,
     seasonEmoji: seasonEmojis[season],
-    weather: weather,
+    weather,
     greeting: getTimeGreeting(now.getHours()),
     isNight: now.getHours() >= 22 || now.getHours() < 6
   };
@@ -151,14 +133,6 @@ function getTimeGreeting(hour) {
   return 'Good night';
 }
 
-// ─── Clear Weather Cache ────────────────────────────────────
-function clearWeatherCache() {
-  weatherCache = {};
-}
+function clearWeatherCache() { weatherCache = {}; }
 
-module.exports = {
-  getWeather,
-  getOrientationData,
-  getSeason,
-  clearWeatherCache
-};
+module.exports = { getWeather, getOrientationData, getSeason, clearWeatherCache };
