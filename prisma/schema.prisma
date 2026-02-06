@@ -537,11 +537,23 @@ model Message {
   conversationId String?
   conversation   Conversation? @relation(fields: [conversationId], references: [id])
 
+  // === Family Communication Fields ===
+  recipientId    String?
+  senderId       String?
+  senderType     String?      // FAMILY, RESIDENT, STAFF, WARDA
+  senderName     String?
+  isDelivered    Boolean      @default(false)
+  deliveredAt    DateTime?
+  mediaUrl       String?      // S3 key for photos/voice
+  thumbnailUrl   String?      // S3 key for photo thumbnail
+
   createdAt      DateTime     @default(now())
 
   @@index([userId])
   @@index([conversationId])
   @@index([createdAt])
+  @@index([recipientId])
+  @@index([isDelivered])
 }
 
 // ============ MEDICATIONS ============

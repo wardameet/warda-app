@@ -38,6 +38,7 @@ async function getProactiveMessage(residentId) {
     const user = await prisma.user.findUnique({
       where: { id: residentId },
       include: {
+        medications: { where: { isActive: true } },
         profile: true,
       }
     });
@@ -100,7 +101,7 @@ async function getProactiveMessage(residentId) {
 }
 
 // ─── Check Medication Due ───────────────────────────────────
-async function checkMedicationDue(medications) {
+async function checkMedicationDue(medications = []) {
   const now = new Date();
   const currentHour = now.getHours();
   const currentMinutes = now.getMinutes();
@@ -130,23 +131,20 @@ async function checkMedicationDue(medications) {
 }
 
 // ─── Check Pending Family Messages ──────────────────────────
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    console.error('Check pending messages error:', error);
+async function checkPendingFamilyMessages(residentId) {
+  try {
+    const messages = await prisma.message.findMany({
+      where: {
+        recipientId: residentId,
+        isDelivered: false,
+        senderType: "FAMILY"
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5
+    });
+    return messages;
+  } catch (error) {
+    console.error("Check pending messages error:", error);
     return [];
   }
 }
@@ -363,7 +361,7 @@ async function runProactiveCheck() {
     return messages;
   } catch (error) {
     console.error('Proactive check error:', error);
-    return [];
+    // return [];  // Schema ready now
   }
 }
 
