@@ -348,6 +348,90 @@ model ResidentProfile {
   // Questionnaire progress
   questionnaireStep    Int      @default(0)
   questionnaireComplete Boolean @default(false)
+  // === Step 1: Identity ===
+  gender              String?
+  nationality         String?
+  languagesSpoken     String[]
+  emergencyContact    String?
+  emergencyPhone      String?
+  // === Step 2: Life Story additions ===
+  education           String?
+  militaryService     Boolean  @default(false)
+  militaryBranch      String?
+  importantDates      Json?
+  proudestAchievement String?
+  missesAboutOldLife  String?
+  placesLived         String[]
+  // === Step 3: Family Connections ===
+  familyTree          Json?
+  primaryFamilyContact String?
+  familyDynamicsNotes String?
+  favouriteFamilyMember String?
+  familyNicknames     Json?
+  // === Step 4: Sensitive additions ===
+  lossTimeline        Json?
+  confusionTriggers   String[]
+  anxietyTriggers     String[]
+  sundowningPatterns  String?
+  redirectionStrategies String[]
+  safeRedirectTopics  String[]
+  // === Step 5: Joy additions ===
+  favouriteRadio      String?
+  favouriteBooks      String?
+  favouriteGames      String[]
+  dailyRoutines       Json?
+  socialPreference    String?
+  conversationStarters String[]
+  thingsThatMakeLaugh String[]
+  favouritePlaces     String[]
+  bucketList          String[]
+  // === Step 6: Faith additions ===
+  religiousCelebrations String[]
+  culturalFoods       String[]
+  traditionalSongs    String[]
+  culturalPractices   String?
+  politicalGuidance   String?
+  historicalEvents    String[]
+  dialectWords        Json?
+  // === Step 7: Health additions ===
+  medications         Json?
+  sleepPattern        String?
+  painManagement      String?
+  moodPatterns        Json?
+  appetite            String?
+  fallRisk            String?
+  allergies           String[]
+  gpName              String?
+  gpPractice          String?
+  // === Step 8: Communication Profile ===
+  voicePreference     String?
+  responseLengthPref  String?
+  humourStyle         String?
+  formalityLevel      String?
+  discomfortSigns     String?
+  happinessExpressions String?
+  conversationPace    String?
+  repetitionHandling  String?
+  conversationEnding  String?
+  // === Step 9: Daily Routines ===
+  wakeUpTime          String?
+  bedTime             String?
+  mealTimes           Json?
+  medicationSchedule  Json?
+  tvSchedule          Json?
+  activitySchedule    Json?
+  visitorPatterns     Json?
+  checkInTimes        String[]
+  weatherInterest     Boolean  @default(false)
+  newsPreference      String?
+  // === Step 10: Enhanced Persona ===
+  morningGreetings    String[]
+  afternoonGreetings  String[]
+  eveningGreetings    String[]
+  nightGreetings      String[]
+  comfortPhrases      String[]
+  proactiveTopics     String[]
+  healthConcernResponses String[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

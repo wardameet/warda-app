@@ -1,6 +1,7 @@
 /**
  * Admin Resident Routes
- * CRUD for residents + therapeutic questionnaire/profile
+ * CRUD for residents + 10-step therapeutic questionnaire/profile
+ * Updated: Feb 2026 — Enhanced questionnaire with Claude AI persona generation
  */
 
 const express = require('express');
@@ -217,7 +218,7 @@ router.delete('/:id', requireRole('SUPER_ADMIN', 'MANAGER'), async (req, res) =>
   }
 });
 
-// =============== THERAPEUTIC QUESTIONNAIRE ===============
+// =============== 10-STEP THERAPEUTIC QUESTIONNAIRE ===============
 
 // GET /api/admin/residents/:id/profile
 router.get('/:id/profile', async (req, res) => {
@@ -246,12 +247,13 @@ router.get('/:id/profile', async (req, res) => {
   }
 });
 
-// PUT /api/admin/residents/:id/profile
+// PUT /api/admin/residents/:id/profile — 10-STEP QUESTIONNAIRE SAVE
 router.put('/:id/profile', async (req, res) => {
   try {
     const { step, data } = req.body;
     let updateData = {};
 
+    // Step 1: Identity & Basics
     if (step === 1 || data.firstName) {
       const userUpdate = {};
       if (data.firstName) userUpdate.firstName = data.firstName;
@@ -259,19 +261,20 @@ router.put('/:id/profile', async (req, res) => {
       if (data.preferredName !== undefined) userUpdate.preferredName = data.preferredName;
       if (data.dateOfBirth) userUpdate.dateOfBirth = new Date(data.dateOfBirth);
       if (data.roomNumber !== undefined) userUpdate.roomNumber = data.roomNumber;
-      if (data.pin !== undefined) userUpdate.pin = data.pin;
       if (data.photoUrl !== undefined) userUpdate.photoUrl = data.photoUrl;
       if (data.moveInDate) userUpdate.moveInDate = new Date(data.moveInDate);
-
       if (Object.keys(userUpdate).length > 0) {
-        await prisma.user.update({
-          where: { id: req.params.id },
-          data: userUpdate
-        });
+        await prisma.user.update({ where: { id: req.params.id }, data: userUpdate });
       }
+      if (data.gender !== undefined) updateData.gender = data.gender;
+      if (data.nationality !== undefined) updateData.nationality = data.nationality;
+      if (data.languagesSpoken !== undefined) updateData.languagesSpoken = data.languagesSpoken;
+      if (data.emergencyContact !== undefined) updateData.emergencyContact = data.emergencyContact;
+      if (data.emergencyPhone !== undefined) updateData.emergencyPhone = data.emergencyPhone;
       updateData.questionnaireStep = Math.max(step || 1, 1);
     }
 
+    // Step 2: Life Story
     if (step === 2 || data.maritalStatus) {
       if (data.maritalStatus !== undefined) updateData.maritalStatus = data.maritalStatus;
       if (data.spouseName !== undefined) updateData.spouseName = data.spouseName;
@@ -282,19 +285,45 @@ router.put('/:id/profile', async (req, res) => {
       if (data.grewUpIn !== undefined) updateData.grewUpIn = data.grewUpIn;
       if (data.keyMemories !== undefined) updateData.keyMemories = data.keyMemories;
       if (data.pets !== undefined) updateData.pets = data.pets;
+      if (data.education !== undefined) updateData.education = data.education;
+      if (data.militaryService !== undefined) updateData.militaryService = data.militaryService;
+      if (data.militaryBranch !== undefined) updateData.militaryBranch = data.militaryBranch;
+      if (data.importantDates !== undefined) updateData.importantDates = data.importantDates;
+      if (data.proudestAchievement !== undefined) updateData.proudestAchievement = data.proudestAchievement;
+      if (data.missesAboutOldLife !== undefined) updateData.missesAboutOldLife = data.missesAboutOldLife;
+      if (data.placesLived !== undefined) updateData.placesLived = data.placesLived;
       updateData.questionnaireStep = Math.max(step || 2, 2);
     }
 
-    if (step === 3 || data.avoidTopics) {
+    // Step 3: Family Connections
+    if (step === 3) {
+      if (data.familyTree !== undefined) updateData.familyTree = data.familyTree;
+      if (data.primaryFamilyContact !== undefined) updateData.primaryFamilyContact = data.primaryFamilyContact;
+      if (data.familyDynamicsNotes !== undefined) updateData.familyDynamicsNotes = data.familyDynamicsNotes;
+      if (data.favouriteFamilyMember !== undefined) updateData.favouriteFamilyMember = data.favouriteFamilyMember;
+      if (data.familyNicknames !== undefined) updateData.familyNicknames = data.familyNicknames;
+      if (data.familyDetails !== undefined) updateData.familyDetails = data.familyDetails;
+      updateData.questionnaireStep = Math.max(step, 3);
+    }
+
+    // Step 4: Sensitive Topics & Boundaries
+    if (step === 4 || data.avoidTopics) {
       if (data.avoidTopics !== undefined) updateData.avoidTopics = data.avoidTopics;
       if (data.sensitiveTopics !== undefined) updateData.sensitiveTopics = data.sensitiveTopics;
       if (data.traumaNotes !== undefined) updateData.traumaNotes = data.traumaNotes;
       if (data.knownTriggers !== undefined) updateData.knownTriggers = data.knownTriggers;
       if (data.bereavementStatus !== undefined) updateData.bereavementStatus = data.bereavementStatus;
-      updateData.questionnaireStep = Math.max(step || 3, 3);
+      if (data.lossTimeline !== undefined) updateData.lossTimeline = data.lossTimeline;
+      if (data.confusionTriggers !== undefined) updateData.confusionTriggers = data.confusionTriggers;
+      if (data.anxietyTriggers !== undefined) updateData.anxietyTriggers = data.anxietyTriggers;
+      if (data.sundowningPatterns !== undefined) updateData.sundowningPatterns = data.sundowningPatterns;
+      if (data.redirectionStrategies !== undefined) updateData.redirectionStrategies = data.redirectionStrategies;
+      if (data.safeRedirectTopics !== undefined) updateData.safeRedirectTopics = data.safeRedirectTopics;
+      updateData.questionnaireStep = Math.max(step || 4, 4);
     }
 
-    if (step === 4 || data.hobbies) {
+    // Step 5: Joy & Interests
+    if (step === 5 || data.hobbies) {
       if (data.joyTopics !== undefined) updateData.joyTopics = data.joyTopics;
       if (data.hobbies !== undefined) updateData.hobbies = data.hobbies;
       if (data.favouriteMusic !== undefined) updateData.favouriteMusic = data.favouriteMusic;
@@ -304,10 +333,20 @@ router.put('/:id/profile', async (req, res) => {
       if (data.favouriteFoods !== undefined) updateData.favouriteFoods = data.favouriteFoods;
       if (data.sportsTeams !== undefined) updateData.sportsTeams = data.sportsTeams;
       if (data.memories !== undefined) updateData.memories = data.memories;
-      updateData.questionnaireStep = Math.max(step || 4, 4);
+      if (data.favouriteRadio !== undefined) updateData.favouriteRadio = data.favouriteRadio;
+      if (data.favouriteBooks !== undefined) updateData.favouriteBooks = data.favouriteBooks;
+      if (data.favouriteGames !== undefined) updateData.favouriteGames = data.favouriteGames;
+      if (data.dailyRoutines !== undefined) updateData.dailyRoutines = data.dailyRoutines;
+      if (data.socialPreference !== undefined) updateData.socialPreference = data.socialPreference;
+      if (data.conversationStarters !== undefined) updateData.conversationStarters = data.conversationStarters;
+      if (data.thingsThatMakeLaugh !== undefined) updateData.thingsThatMakeLaugh = data.thingsThatMakeLaugh;
+      if (data.favouritePlaces !== undefined) updateData.favouritePlaces = data.favouritePlaces;
+      if (data.bucketList !== undefined) updateData.bucketList = data.bucketList;
+      updateData.questionnaireStep = Math.max(step || 5, 5);
     }
 
-    if (step === 5 || data.faithType) {
+    // Step 6: Faith, Culture & Identity
+    if (step === 6 || data.faithType) {
       if (data.faithType !== undefined) updateData.faithType = data.faithType;
       if (data.denomination !== undefined) updateData.denomination = data.denomination;
       if (data.faithComfort !== undefined) updateData.faithComfort = data.faithComfort;
@@ -322,10 +361,18 @@ router.put('/:id/profile', async (req, res) => {
       if (data.useWelsh !== undefined) updateData.useWelsh = data.useWelsh;
       if (data.useIrish !== undefined) updateData.useIrish = data.useIrish;
       if (data.faithPhrases !== undefined) updateData.faithPhrases = data.faithPhrases;
-      updateData.questionnaireStep = Math.max(step || 5, 5);
+      if (data.religiousCelebrations !== undefined) updateData.religiousCelebrations = data.religiousCelebrations;
+      if (data.culturalFoods !== undefined) updateData.culturalFoods = data.culturalFoods;
+      if (data.traditionalSongs !== undefined) updateData.traditionalSongs = data.traditionalSongs;
+      if (data.culturalPractices !== undefined) updateData.culturalPractices = data.culturalPractices;
+      if (data.politicalGuidance !== undefined) updateData.politicalGuidance = data.politicalGuidance;
+      if (data.historicalEvents !== undefined) updateData.historicalEvents = data.historicalEvents;
+      if (data.dialectWords !== undefined) updateData.dialectWords = data.dialectWords;
+      updateData.questionnaireStep = Math.max(step || 6, 6);
     }
 
-    if (step === 6 || data.dementiaStage) {
+    // Step 7: Health & Wellbeing
+    if (step === 7 || data.dementiaStage) {
       if (data.dementiaStage !== undefined) updateData.dementiaStage = data.dementiaStage;
       if (data.mobilityLevel !== undefined) updateData.mobilityLevel = data.mobilityLevel;
       if (data.hearing !== undefined) updateData.hearing = data.hearing;
@@ -333,10 +380,49 @@ router.put('/:id/profile', async (req, res) => {
       if (data.communicationStyle !== undefined) updateData.communicationStyle = data.communicationStyle;
       if (data.bestTimeOfDay !== undefined) updateData.bestTimeOfDay = data.bestTimeOfDay;
       if (data.dietaryNeeds !== undefined) updateData.dietaryNeeds = data.dietaryNeeds;
-      updateData.questionnaireStep = Math.max(step || 6, 6);
+      if (data.medications !== undefined) updateData.medications = data.medications;
+      if (data.sleepPattern !== undefined) updateData.sleepPattern = data.sleepPattern;
+      if (data.painManagement !== undefined) updateData.painManagement = data.painManagement;
+      if (data.moodPatterns !== undefined) updateData.moodPatterns = data.moodPatterns;
+      if (data.appetite !== undefined) updateData.appetite = data.appetite;
+      if (data.fallRisk !== undefined) updateData.fallRisk = data.fallRisk;
+      if (data.allergies !== undefined) updateData.allergies = data.allergies;
+      if (data.gpName !== undefined) updateData.gpName = data.gpName;
+      if (data.gpPractice !== undefined) updateData.gpPractice = data.gpPractice;
+      updateData.questionnaireStep = Math.max(step || 7, 7);
     }
 
-    if (step === 7 || data.wardaBackstory) {
+    // Step 8: Communication Profile
+    if (step === 8) {
+      if (data.voicePreference !== undefined) updateData.voicePreference = data.voicePreference;
+      if (data.responseLengthPref !== undefined) updateData.responseLengthPref = data.responseLengthPref;
+      if (data.humourStyle !== undefined) updateData.humourStyle = data.humourStyle;
+      if (data.formalityLevel !== undefined) updateData.formalityLevel = data.formalityLevel;
+      if (data.discomfortSigns !== undefined) updateData.discomfortSigns = data.discomfortSigns;
+      if (data.happinessExpressions !== undefined) updateData.happinessExpressions = data.happinessExpressions;
+      if (data.conversationPace !== undefined) updateData.conversationPace = data.conversationPace;
+      if (data.repetitionHandling !== undefined) updateData.repetitionHandling = data.repetitionHandling;
+      if (data.conversationEnding !== undefined) updateData.conversationEnding = data.conversationEnding;
+      updateData.questionnaireStep = Math.max(step, 8);
+    }
+
+    // Step 9: Daily Life & Routines
+    if (step === 9) {
+      if (data.wakeUpTime !== undefined) updateData.wakeUpTime = data.wakeUpTime;
+      if (data.bedTime !== undefined) updateData.bedTime = data.bedTime;
+      if (data.mealTimes !== undefined) updateData.mealTimes = data.mealTimes;
+      if (data.medicationSchedule !== undefined) updateData.medicationSchedule = data.medicationSchedule;
+      if (data.tvSchedule !== undefined) updateData.tvSchedule = data.tvSchedule;
+      if (data.activitySchedule !== undefined) updateData.activitySchedule = data.activitySchedule;
+      if (data.visitorPatterns !== undefined) updateData.visitorPatterns = data.visitorPatterns;
+      if (data.checkInTimes !== undefined) updateData.checkInTimes = data.checkInTimes;
+      if (data.weatherInterest !== undefined) updateData.weatherInterest = data.weatherInterest;
+      if (data.newsPreference !== undefined) updateData.newsPreference = data.newsPreference;
+      updateData.questionnaireStep = Math.max(step, 9);
+    }
+
+    // Step 10: Warda's Persona (AI-generated)
+    if (step === 10 || data.wardaBackstory) {
       if (data.wardaBackstory !== undefined) updateData.wardaBackstory = data.wardaBackstory;
       if (data.wardaAge !== undefined) updateData.wardaAge = data.wardaAge;
       if (data.wardaTraits !== undefined) updateData.wardaTraits = data.wardaTraits;
@@ -345,7 +431,14 @@ router.put('/:id/profile', async (req, res) => {
       if (data.hardBoundaries !== undefined) updateData.hardBoundaries = data.hardBoundaries;
       if (data.therapyGoals !== undefined) updateData.therapyGoals = data.therapyGoals;
       if (data.familyDetails !== undefined) updateData.familyDetails = data.familyDetails;
-      updateData.questionnaireStep = 7;
+      if (data.morningGreetings !== undefined) updateData.morningGreetings = data.morningGreetings;
+      if (data.afternoonGreetings !== undefined) updateData.afternoonGreetings = data.afternoonGreetings;
+      if (data.eveningGreetings !== undefined) updateData.eveningGreetings = data.eveningGreetings;
+      if (data.nightGreetings !== undefined) updateData.nightGreetings = data.nightGreetings;
+      if (data.comfortPhrases !== undefined) updateData.comfortPhrases = data.comfortPhrases;
+      if (data.proactiveTopics !== undefined) updateData.proactiveTopics = data.proactiveTopics;
+      if (data.healthConcernResponses !== undefined) updateData.healthConcernResponses = data.healthConcernResponses;
+      updateData.questionnaireStep = 10;
       updateData.questionnaireComplete = true;
     }
 
@@ -360,7 +453,7 @@ router.put('/:id/profile', async (req, res) => {
     res.json({
       success: true,
       profile,
-      message: step === 7 ? 'Profile complete! Warda is ready.' : `Step ${step} saved.`
+      message: step === 10 ? 'Profile complete! Warda is now personalised.' : `Step ${step} saved.`
     });
   } catch (error) {
     console.error('Update profile error:', error);
@@ -368,14 +461,18 @@ router.put('/:id/profile', async (req, res) => {
   }
 });
 
-// POST /api/admin/residents/:id/profile/generate-persona
+// POST /api/admin/residents/:id/profile/generate-persona — CLAUDE AI POWERED
 router.post('/:id/profile/generate-persona', async (req, res) => {
   try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
     const profile = await prisma.residentProfile.findUnique({
       where: { residentId: req.params.id },
       include: {
         resident: {
-          select: { firstName: true, lastName: true, preferredName: true, dateOfBirth: true }
+          select: { firstName: true, lastName: true, preferredName: true, dateOfBirth: true, roomNumber: true },
+          include: { familyContacts: true, careHome: { select: { name: true } } }
         }
       }
     });
@@ -389,81 +486,135 @@ router.post('/:id/profile/generate-persona', async (req, res) => {
       ? Math.floor((Date.now() - new Date(profile.resident.dateOfBirth).getTime()) / 31557600000)
       : null;
 
-    let backstory = "I'm Warda, your companion.";
-    let traits = [];
-    let greeting = `Hello ${name}, it's Warda!`;
+    // Build comprehensive profile summary for Claude
+    const profileSummary = {
+      name, age,
+      fullName: profile.resident.firstName + ' ' + profile.resident.lastName,
+      gender: profile.gender,
+      roomNumber: profile.resident.roomNumber,
+      careHome: profile.resident.careHome?.name,
+      nationality: profile.nationality,
+      culturalBackground: profile.culturalBackground,
+      maritalStatus: profile.maritalStatus,
+      spouseName: profile.spouseName,
+      spouseDetails: profile.spouseDetails,
+      previousCareer: profile.previousCareer,
+      education: profile.education,
+      grewUpIn: profile.grewUpIn,
+      militaryService: profile.militaryService,
+      placesLived: profile.placesLived,
+      proudestAchievement: profile.proudestAchievement,
+      missesAboutOldLife: profile.missesAboutOldLife,
+      children: profile.children,
+      grandchildren: profile.grandchildren,
+      familyTree: profile.familyTree,
+      favouriteFamilyMember: profile.favouriteFamilyMember,
+      familyContacts: profile.resident.familyContacts?.map(function(fc) { return fc.name + ' (' + fc.relationship + ')'; }),
+      pets: profile.pets,
+      keyMemories: profile.keyMemories,
+      avoidTopics: profile.avoidTopics,
+      sensitiveTopics: profile.sensitiveTopics,
+      knownTriggers: profile.knownTriggers,
+      bereavementStatus: profile.bereavementStatus,
+      safeRedirectTopics: profile.safeRedirectTopics,
+      hobbies: profile.hobbies,
+      favouriteMusic: profile.favouriteMusic,
+      favouriteTv: profile.favouriteTv,
+      favouriteFoods: profile.favouriteFoods,
+      sportsTeams: profile.sportsTeams,
+      favouriteBooks: profile.favouriteBooks,
+      favouriteGames: profile.favouriteGames,
+      conversationStarters: profile.conversationStarters,
+      thingsThatMakeLaugh: profile.thingsThatMakeLaugh,
+      favouritePlaces: profile.favouritePlaces,
+      faithType: profile.faithType,
+      denomination: profile.denomination,
+      faithComfort: profile.faithComfort,
+      useGaelic: profile.useGaelic,
+      useScottish: profile.useScottish,
+      culturalFoods: profile.culturalFoods,
+      traditionalSongs: profile.traditionalSongs,
+      historicalEvents: profile.historicalEvents,
+      dementiaStage: profile.dementiaStage,
+      hearing: profile.hearing,
+      communicationStyle: profile.communicationStyle,
+      humourStyle: profile.humourStyle,
+      formalityLevel: profile.formalityLevel,
+      responseLengthPref: profile.responseLengthPref,
+      conversationPace: profile.conversationPace,
+      sleepPattern: profile.sleepPattern,
+      wakeUpTime: profile.wakeUpTime,
+      bedTime: profile.bedTime
+    };
 
-    if (profile.maritalStatus === 'Widowed' && profile.spouseName) {
-      backstory += ` I understand loss deeply.`;
-      traits.push('widowed');
-    } else if (profile.maritalStatus === 'Married') {
-      backstory += ' I know how important family is.';
-    }
-
-    if (profile.previousCareer) {
-      backstory += ` I have great respect for ${profile.previousCareer.toLowerCase()} work.`;
-      traits.push(profile.previousCareer.toLowerCase());
-    }
-
-    if (profile.grewUpIn) {
-      backstory += ` I have a soft spot for ${profile.grewUpIn}.`;
-      traits.push(profile.grewUpIn);
-    }
-
-    if (profile.hobbies && profile.hobbies.length > 0) {
-      const hobbyList = profile.hobbies.slice(0, 3).join(', ');
-      backstory += ` I love ${hobbyList} too!`;
-      traits.push(...profile.hobbies.slice(0, 3));
-    }
-
-    if (profile.faithType && profile.faithType !== 'None') {
-      traits.push(profile.faithType);
-      if (profile.faithComfort) {
-        backstory += ` Faith gives me great comfort too.`;
+    // Remove null/empty values
+    Object.keys(profileSummary).forEach(function(k) {
+      if (profileSummary[k] === null || profileSummary[k] === undefined || profileSummary[k] === '' ||
+          (Array.isArray(profileSummary[k]) && profileSummary[k].length === 0)) {
+        delete profileSummary[k];
       }
+    });
+
+    var claudePrompt = 'Generate Warda\'s persona for this resident:\n\n' + JSON.stringify(profileSummary, null, 2);
+    claudePrompt += '\n\nReturn JSON with these exact keys:\n';
+    claudePrompt += '{\n';
+    claudePrompt += '  "backstory": "A 2-3 paragraph backstory for Warda that shares relatable experiences with the resident. If widowed, Warda understands loss. If Scottish, Warda has Scottish connections. Make it warm and specific.",\n';
+    claudePrompt += '  "age": "Warda\'s presented age (e.g. \'in her late 60s\')",\n';
+    claudePrompt += '  "traits": ["list", "of", "5-8", "personality", "traits"],\n';
+    claudePrompt += '  "morningGreetings": ["3 personalised morning greetings using their name"],\n';
+    claudePrompt += '  "afternoonGreetings": ["3 personalised afternoon greetings"],\n';
+    claudePrompt += '  "eveningGreetings": ["3 personalised evening greetings"],\n';
+    claudePrompt += '  "nightGreetings": ["3 personalised late night greetings - gentle, not alarmed"],\n';
+    claudePrompt += '  "comfortPhrases": ["5 phrases to use when the resident is sad or distressed"],\n';
+    claudePrompt += '  "proactiveTopics": ["8-10 topics Warda should bring up when conversation is quiet"],\n';
+    claudePrompt += '  "healthConcernResponses": ["3 gentle ways to respond if resident mentions pain or feeling unwell"],\n';
+    claudePrompt += '  "conversationTopics": ["10 specific conversation starters based on their life"],\n';
+    claudePrompt += '  "hardBoundaries": ["topics to NEVER bring up - from avoidTopics and sensitiveTopics"]\n';
+    claudePrompt += '}';
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      system: 'You are a persona designer for Warda, an AI companion for elderly care home residents. Based on the resident profile provided, generate a rich, personalised persona for Warda to adopt when speaking with this resident. Respond ONLY in valid JSON format with no markdown or extra text.',
+      messages: [{ role: 'user', content: claudePrompt }]
+    });
+
+    var persona;
+    try {
+      var text = response.content[0].text.trim();
+      if (text.startsWith('```')) {
+        text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+      }
+      persona = JSON.parse(text);
+    } catch (parseErr) {
+      console.error('Failed to parse Claude persona response:', parseErr);
+      console.error('Raw response:', response.content[0].text);
+      return res.status(500).json({ success: false, error: 'Failed to parse AI response' });
     }
 
-    if (profile.useGaelic || profile.culturalBackground === 'Scottish') {
-      greeting = `Madainn mhath, ${name}! It's Warda.`;
-      traits.push('Scottish');
-    } else if (profile.culturalBackground === 'Welsh') {
-      greeting = `Bore da, ${name}! It's Warda.`;
-      traits.push('Welsh');
-    } else if (profile.culturalBackground === 'Irish') {
-      greeting = `Dia duit, ${name}! It's Warda.`;
-      traits.push('Irish');
-    }
-
-    let wardaAge = 'in her 60s';
-    if (age) {
-      if (age >= 90) wardaAge = 'in her 70s';
-      else if (age >= 80) wardaAge = 'in her late 60s';
-      else if (age >= 70) wardaAge = 'in her early 60s';
-      else wardaAge = 'in her late 50s';
-    }
-
-    const conversationTopics = [
-      ...(profile.joyTopics || []),
-      ...(profile.hobbies || []),
-      ...(profile.memories || [])
-    ].slice(0, 10);
-
-    const hardBoundaries = [...(profile.avoidTopics || [])];
-
-    const updated = await prisma.residentProfile.update({
+    // Save generated persona
+    var updated = await prisma.residentProfile.update({
       where: { residentId: req.params.id },
-      data: { wardaBackstory: backstory, wardaAge, wardaTraits: traits, greetingStyle: greeting, conversationTopics, hardBoundaries }
+      data: {
+        wardaBackstory: persona.backstory,
+        wardaAge: persona.age,
+        wardaTraits: persona.traits || [],
+        greetingStyle: (persona.morningGreetings && persona.morningGreetings[0]) || ('Good morning, ' + name + '! It\'s Warda here.'),
+        morningGreetings: persona.morningGreetings || [],
+        afternoonGreetings: persona.afternoonGreetings || [],
+        eveningGreetings: persona.eveningGreetings || [],
+        nightGreetings: persona.nightGreetings || [],
+        comfortPhrases: persona.comfortPhrases || [],
+        proactiveTopics: persona.proactiveTopics || [],
+        healthConcernResponses: persona.healthConcernResponses || [],
+        conversationTopics: persona.conversationTopics || [],
+        hardBoundaries: persona.hardBoundaries || []
+      }
     });
 
     await logAudit(req.adminUser.id, 'GENERATE_PERSONA', 'ResidentProfile', updated.id, null, req.ip);
 
-    res.json({
-      success: true,
-      persona: {
-        backstory, age: wardaAge, traits, greeting, conversationTopics, hardBoundaries,
-        previewMessage: `${greeting} Did you sleep well, dear?`
-      }
-    });
+    res.json({ success: true, persona: persona });
   } catch (error) {
     console.error('Generate persona error:', error);
     res.status(500).json({ success: false, error: 'Failed to generate persona' });
@@ -483,7 +634,15 @@ router.get('/:id/profile/preview', async (req, res) => {
     }
 
     const name = profile.resident.preferredName || profile.resident.firstName;
-    const greeting = profile.greetingStyle || `Hello ${name}, it's Warda!`;
+    const hour = new Date().getHours();
+    var greetings = profile.morningGreetings;
+    if (hour >= 12 && hour < 17) greetings = profile.afternoonGreetings;
+    else if (hour >= 17 && hour < 21) greetings = profile.eveningGreetings;
+    else if (hour >= 21 || hour < 6) greetings = profile.nightGreetings;
+
+    var greeting = (greetings && greetings.length > 0)
+      ? greetings[Math.floor(Math.random() * greetings.length)]
+      : (profile.greetingStyle || ('Hello ' + name + ', it\'s Warda!'));
 
     const preview = [
       { sender: 'warda', text: greeting },
@@ -494,18 +653,24 @@ router.get('/:id/profile/preview', async (req, res) => {
     if (profile.conversationTopics && profile.conversationTopics.length > 0) {
       preview.push({
         sender: 'warda',
-        text: `That is good! Have you been doing any ${profile.conversationTopics[0]} lately?`
+        text: 'That is good! ' + profile.conversationTopics[Math.floor(Math.random() * profile.conversationTopics.length)]
       });
     }
 
     res.json({
       success: true,
-      preview,
+      preview: preview,
       persona: {
         backstory: profile.wardaBackstory,
         age: profile.wardaAge,
         traits: profile.wardaTraits,
-        hardBoundaries: profile.hardBoundaries
+        hardBoundaries: profile.hardBoundaries,
+        morningGreetings: profile.morningGreetings,
+        afternoonGreetings: profile.afternoonGreetings,
+        eveningGreetings: profile.eveningGreetings,
+        nightGreetings: profile.nightGreetings,
+        comfortPhrases: profile.comfortPhrases,
+        proactiveTopics: profile.proactiveTopics
       }
     });
   } catch (error) {
@@ -514,40 +679,39 @@ router.get('/:id/profile/preview', async (req, res) => {
   }
 });
 
-module.exports = router;
-
-// POST /api/admin/residents/:id/reset-pin - Reset resident's PIN to 1234
+// POST /api/admin/residents/:id/reset-pin
 router.post('/:id/reset-pin', async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
-    
+
     const user = await prisma.user.findUnique({ where: { id } });
-    
+
     if (!user) {
       return res.status(404).json({ error: 'Resident not found' });
     }
-    
-    // Check access for non-super admins
+
     if (req.adminUser.role !== 'SUPER_ADMIN' && user.careHomeId !== req.careHomeId) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    
+
     await prisma.user.update({
       where: { id },
       data: {
         pin: '1234',
         pinResetAt: new Date(),
         pinResetBy: req.adminUser.id,
-        pinChangedAt: null // Force PIN change on next login
+        pinChangedAt: null
       }
     });
-    
+
     await logAudit(req.adminUser.id, 'RESET_PIN', 'User', id, { reason }, req.ip);
-    
+
     res.json({ success: true, message: 'PIN reset to 1234. User will be prompted to change it on next login.' });
   } catch (error) {
     console.error('Reset PIN error:', error);
     res.status(500).json({ error: 'Failed to reset PIN' });
   }
 });
+
+module.exports = router;
