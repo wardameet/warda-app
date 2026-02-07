@@ -740,17 +740,17 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/conversation/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ residentId: resident?.id }),
+        body: JSON.stringify({ userId: resident?.id, residentName: residentName }),
       });
       const data = await res.json();
       if (data.success) {
-        setConversationId(data.conversationId);
+        setConversationId(data.sessionId);
         if (data.greeting) setMessages([{ id: 'greet', text: data.greeting, isWarda: true }]);
       }
     } catch {
       setMessages([{ id: 'greet', text: `${greeting}. How are you today, dear?`, isWarda: true }]);
     }
-  }, [conversationId, resident?.id, greeting]);
+  }, [conversationId, resident?.id, residentName, greeting]);
 
   const handleSend = async (text: string) => {
     if (!text?.trim() || isProcessing) return;
@@ -761,11 +761,11 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/conversation/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ residentId: resident?.id, conversationId, message: text.trim() }),
+        body: JSON.stringify({ userId: resident?.id, message: text.trim() }),
       });
       const data = await res.json();
-      if (data.success && data.response)
-        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: data.response, isWarda: true }]);
+      if (data.success && data.response?.text)
+        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: data.response.text, isWarda: true }]);
     } catch {
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: "I'm sorry dear, could you say that again?", isWarda: true }]);
     } finally { setIsProcessing(false); }
