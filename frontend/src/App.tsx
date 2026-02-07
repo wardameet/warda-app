@@ -801,47 +801,49 @@ export default function App() {
         }} />
       )}
 
-      {/* ─── TOP BAR ───────────────────────────────────────────── */}
-      <div style={{
-        position: 'relative', zIndex: 30,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        padding: '16px 24px 0',
-      }}>
-        <div>
-          <div style={{
-            fontSize: 36, fontWeight: 300, fontFamily: fonts.heading,
-            color: isNight ? '#E8E0D8' : P.text, letterSpacing: -0.5, lineHeight: 1,
-          }}>{time}</div>
-          <div style={{
-            fontSize: 14, color: isNight ? 'rgba(232,224,216,0.55)' : P.textSoft,
-            fontWeight: 500, marginTop: 3,
-          }}>{date}</div>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            marginTop: 6, padding: '4px 11px', borderRadius: 14,
-            background: isNight ? 'rgba(255,255,255,0.06)' : P.surfaceGlass,
-            fontSize: 13, color: isNight ? 'rgba(232,224,216,0.6)' : P.textSoft, fontWeight: 500,
-          }}>
-            <span>{weather.icon}</span>
-            <span style={{ fontWeight: 600 }}>{weather.temp}</span>
-            <span style={{ opacity: 0.4 }}>·</span>
-            <span>{weather.desc}</span>
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+      {/* ─── TOP BAR (ambient + feature only) ──────────────────── */}
+      {mode !== 'conversation' && (
+        <div style={{
+          position: 'relative', zIndex: 30,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          padding: '16px 24px 0',
+        }}>
           <div>
             <div style={{
-              fontSize: 14, fontWeight: 600, textAlign: 'right' as const,
-              color: isNight ? 'rgba(232,224,216,0.6)' : P.textSoft,
-            }}>{resident?.careHomeName || 'Care Home'}</div>
+              fontSize: 36, fontWeight: 300, fontFamily: fonts.heading,
+              color: isNight ? '#E8E0D8' : P.text, letterSpacing: -0.5, lineHeight: 1,
+            }}>{time}</div>
             <div style={{
-              fontSize: 12, color: isNight ? 'rgba(232,224,216,0.35)' : P.textMuted,
-              marginTop: 1, textAlign: 'right' as const,
-            }}>Room {resident?.roomNumber || ''}</div>
+              fontSize: 14, color: isNight ? 'rgba(232,224,216,0.55)' : P.textSoft,
+              fontWeight: 500, marginTop: 3,
+            }}>{date}</div>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              marginTop: 6, padding: '4px 11px', borderRadius: 14,
+              background: isNight ? 'rgba(255,255,255,0.06)' : P.surfaceGlass,
+              fontSize: 13, color: isNight ? 'rgba(232,224,216,0.6)' : P.textSoft, fontWeight: 500,
+            }}>
+              <span>{weather.icon}</span>
+              <span style={{ fontWeight: 600 }}>{weather.temp}</span>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span>{weather.desc}</span>
+            </div>
           </div>
-          <HelpButton />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <div>
+              <div style={{
+                fontSize: 14, fontWeight: 600, textAlign: 'right' as const,
+                color: isNight ? 'rgba(232,224,216,0.6)' : P.textSoft,
+              }}>{resident?.careHomeName || 'Care Home'}</div>
+              <div style={{
+                fontSize: 12, color: isNight ? 'rgba(232,224,216,0.35)' : P.textMuted,
+                marginTop: 1, textAlign: 'right' as const,
+              }}>Room {resident?.roomNumber || ''}</div>
+            </div>
+            <HelpButton />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ═══ AMBIENT MODE ═══════════════════════════════════════ */}
       {mode === 'ambient' && (
@@ -889,13 +891,13 @@ export default function App() {
       {mode === 'conversation' && (
         <div style={{
           display: 'flex', flexDirection: 'column',
-          height: 'calc(100vh - 110px)', zIndex: 10,
+          height: '100vh', zIndex: 10,
           animation: 'fadeIn 0.35s ease',
         }}>
           {/* Header */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '8px 24px',
+            padding: '16px 24px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
