@@ -350,16 +350,27 @@ function HelpButton() {
   const [pressed, setPressed] = useState(false);
 
   const handleHelp = async () => {
+    if (pressed) return; // Prevent double-tap
     setPressed(true);
     try {
       const residentId = localStorage.getItem('warda_resident_id');
+      const residentData = localStorage.getItem('warda_resident');
+      const resident = residentData ? JSON.parse(residentData) : null;
+      const name = resident?.preferredName || resident?.firstName || 'Resident';
+
       await fetch(`${API_BASE}/api/alerts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ residentId, type: 'HELP', priority: 'HIGH' }),
+        body: JSON.stringify({
+          residentId,
+          type: 'HELP',
+          severity: 'critical',
+          message: `${name} (Room ${resident?.roomNumber || '?'}) pressed the Help button`,
+          careHomeId: resident?.careHomeId,
+        }),
       });
     } catch {}
-    setTimeout(() => setPressed(false), 3000);
+    setTimeout(() => setPressed(false), 5000);
   };
 
   return (
@@ -376,7 +387,7 @@ function HelpButton() {
       transition: 'all 0.2s ease',
     }}>
       <span style={{ fontSize: 20 }}>🆘</span>
-      <span>{pressed ? 'Help is coming!' : 'Help'}</span>
+      <span>{pressed ? '✓ Help is coming!' : 'Help'}</span>
     </button>
   );
 }
