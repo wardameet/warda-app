@@ -225,6 +225,7 @@ model User {
   pinResetAt      DateTime?
   pinResetBy      String?
   photoUrl      String?
+  assignedDevices DeviceCode[] @relation("DeviceUser")
   status        ResidentStatus @default(ACTIVE)
   accountType   AccountType    @default(B2B)
   moveInDate    DateTime?
@@ -796,6 +797,8 @@ model DeviceCode {
   activatedAt     DateTime?
   lastValidatedAt DateTime?
   createdBy       String?   // Admin who created it
+  assignedUserId  String?
+  assignedUser    User?     @relation("DeviceUser", fields: [assignedUserId], references: [id])
   
   @@index([careHomeId])
   @@index([code])

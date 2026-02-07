@@ -264,4 +264,70 @@ router.post('/change-pin', async (req, res) => {
   }
 });
 
+
+// GET /api/tablet/status - Check device status (called every 24 hours by tablet)
+router.get('/status', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, status: 'NOT_ACTIVATED' });
+    }
+    const code = authHeader.replace('Bearer ', '').trim().toUpperCase();
+    const device = await prisma.deviceCode.findUnique({
+      where: { code },
+      include: {
+        careHome: { select: { id: true, name: true, status: true } },
+        assignedUser: {
+          select: {
+            id: true, firstName: true, lastName: true, preferredName: true,
+            photoUrl: true, careHomeId: true, roomNumber: true,
+            careHome: { select: { name: true } }
+          }
+        }
+      }
+    });
+    if (!device) {
+      return res.json({ success: false, status: 'NOT_ACTIVATED' });
+    }
+    if (device.careHome?.status === 'CANCELLED') {
+      return res.json({ success: false, status: 'CANCELLED' });
+    }
+    if (device.careHome?.status === 'PAUSED') {
+      return res.json({ success: false, status: 'SUSPENDED' });
+    }
+    if (device.status === 'REVOKED' || device.status === 'CANCELLED') {
+      return res.json({ success: false, status: 'CANCELLED' });
+    }
+    if (device.status === 'SUSPENDED') {
+      return res.json({ success: false, status: 'SUSPENDED' });
+    }
+    if (device.status === 'EXPIRED' || (device.expiresAt && new Date() > device.expiresAt)) {
+      return res.json({ success: false, status: 'SUSPENDED' });
+    }
+    if (device.status !== 'ACTIVE') {
+      return res.json({ success: false, status: 'NOT_ACTIVATED' });
+    }
+    if (!device.assignedUser) {
+      return res.json({ success: false, status: 'NOT_ACTIVATED', message: 'No resident assigned' });
+    }
+    await prisma.deviceCode.update({
+      where: { id: device.id },
+      data: { lastValidatedAt: new Date() }
+    });
+    const r = device.assignedUser;
+    res.json({
+      success: true,
+      status: 'ACTIVE',
+      resident: {
+        id: r.id, firstName: r.firstName, lastName: r.lastName,
+        preferredName: r.preferredName, photoUrl: r.photoUrl,
+        careHomeId: r.careHomeId, careHomeName: r.careHome?.name,
+        roomNumber: r.roomNumber
+      }
+    });
+  } catch (error) {
+    console.error('Device status check error:', error);
+    res.status(500).json({ success: false, error: 'Status check failed' });
+  }
+});
 module.exports = router;
