@@ -61,8 +61,8 @@ async function sendPushToUser(userId, payload) {
  */
 async function sendPushToFamily(residentId, payload) {
   try {
-    const familyMembers = await prisma.familyMember.findMany({
-      where: { residentId },
+    const familyMembers = await prisma.familyContact.findMany({
+      where: { userId: residentId },
       select: { id: true, name: true }
     });
     let totalSent = 0;
