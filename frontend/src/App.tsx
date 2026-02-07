@@ -11,6 +11,16 @@ const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:3001'
   : 'https://api.meetwarda.com';
 
+// ─── HQ Setup: read device code from URL (?setup=SUNNY-XXXX-XXXX-XXXX) ──
+const setupParams = new URLSearchParams(window.location.search);
+const setupCode = setupParams.get('setup');
+if (setupCode) {
+  localStorage.setItem('warda_device_token', setupCode.toUpperCase());
+  localStorage.removeItem('warda_last_status_check');
+  localStorage.removeItem('warda_cancelled');
+  window.history.replaceState({}, '', window.location.pathname);
+}
+
 // ─── Design Tokens ────────────────────────────────────────────────────
 const P = {
   bg: '#F5F0EB', bgWarm: '#EDE7E0',
