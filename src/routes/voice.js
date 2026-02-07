@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { textToSpeech, VOICES } = require('../services/voice');
+const { transcribeBase64 } = require('../services/transcribe');
 const { getWardaResponse } = require('../services/claude');
 
 // Convert text to speech
@@ -65,6 +66,23 @@ router.get('/voices', (req, res) => {
 });
 
 module.exports = router;
+
+// Transcribe audio from tablet
+router.post("/transcribe", async (req, res) => {
+  try {
+    const { audio, format, sampleRate } = req.body;
+    if (!audio) return res.status(400).json({ success: false, error: "Audio data required" });
+    const result = await transcribeBase64(audio, {
+      languageCode: "en-GB",
+      mediaSampleRate: sampleRate || 16000,
+      mediaEncoding: format || "pcm",
+    });
+    res.json({ success: result.success, transcript: result.transcript, confidence: result.confidence, error: result.error });
+  } catch (error) {
+    console.error("Transcribe error:", error);
+    res.status(500).json({ success: false, error: "Transcription failed" });
+  }
+});
 
 // ─── Voice Navigation Commands ──────────────────────────────
 const NAVIGATION_COMMANDS = [
