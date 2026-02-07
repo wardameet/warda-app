@@ -733,6 +733,24 @@ export default function App() {
       setTimeout(() => inputRef.current?.focus(), 100);
   }, [conversationMode, mode]);
 
+  // ─── Text-to-Speech (Polly) ───────────────────────────────────
+  const speakText = useCallback(async (text: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/voice/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      if (data.success && data.audio) {
+        const audio = new Audio(`data:${data.contentType};base64,${data.audio}`);
+        audio.play().catch(() => {}); // Ignore autoplay restrictions
+      }
+    } catch {
+      // Silent fallback — no TTS is fine, text still shows
+    }
+  }, []);
+
   // ─── Conversation API ─────────────────────────────────────────
   const startConversation = useCallback(async () => {
     if (conversationId) return;
@@ -745,12 +763,16 @@ export default function App() {
       const data = await res.json();
       if (data.success) {
         setConversationId(data.sessionId);
-        if (data.greeting) setMessages([{ id: 'greet', text: data.greeting, isWarda: true }]);
+        if (data.greeting) {
+          setMessages([{ id: 'greet', text: data.greeting, isWarda: true }]);
+          speakText(data.greeting);
+        }
       }
     } catch {
-      setMessages([{ id: 'greet', text: `${greeting}. How are you today, dear?`, isWarda: true }]);
+      const fallback = `${greeting}. How are you today, dear?`;
+      setMessages([{ id: 'greet', text: fallback, isWarda: true }]);
     }
-  }, [conversationId, resident?.id, residentName, greeting]);
+  }, [conversationId, resident?.id, residentName, greeting, speakText]);
 
   const handleSend = async (text: string) => {
     if (!text?.trim() || isProcessing) return;
@@ -764,8 +786,10 @@ export default function App() {
         body: JSON.stringify({ userId: resident?.id, message: text.trim() }),
       });
       const data = await res.json();
-      if (data.success && data.response?.text)
+      if (data.success && data.response?.text) {
         setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: data.response.text, isWarda: true }]);
+        speakText(data.response.text);
+      }
     } catch {
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: "I'm sorry dear, could you say that again?", isWarda: true }]);
     } finally { setIsProcessing(false); }
