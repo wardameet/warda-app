@@ -820,9 +820,6 @@ export default function App() {
         const audio = new Audio(`data:${data.contentType};base64,${data.audio}`);
         audio.onended = () => {
           isPlayingRef.current = false;
-          if (shouldAutoListenRef.current) {
-            setTimeout(() => startRecognition(), 400);
-          }
         };
         audio.onerror = () => { isPlayingRef.current = false; };
         audio.play().catch(() => { isPlayingRef.current = false; });
