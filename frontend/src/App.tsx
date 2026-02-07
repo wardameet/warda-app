@@ -934,9 +934,10 @@ export default function App() {
 
           {/* Footer */}
           <div style={{
-            marginTop: 'auto', paddingBottom: 10, textAlign: 'center',
+            position: 'fixed', bottom: 8, left: 0, right: 0,
+            textAlign: 'center',
             fontSize: 11, color: isNight ? 'rgba(232,224,216,0.25)' : P.textLight,
-            fontFamily: fonts.body,
+            fontFamily: fonts.body, zIndex: 5,
           }}>
             © {new Date().getFullYear()} Eletiser Ltd · Meet Warda™ · You're Never Alone
           </div>
