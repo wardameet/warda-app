@@ -799,7 +799,48 @@ export default function App() {
     setConversationMode(initial);
     setMode('conversation');
     startConversation();
-    if (initial === 'voice') setIsListening(true);
+  };
+
+  // ─── Speech Recognition (Web Speech API) ────────────────────
+  const recognitionRef = useRef<any>(null);
+  const startListening = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      // Fallback: switch to type mode if no speech API
+      setConversationMode('type');
+      return;
+    }
+    const recognition = new SR();
+    recognition.lang = 'en-GB';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      if (transcript?.trim()) {
+        handleSend(transcript.trim());
+      }
+      setIsListening(false);
+    };
+    recognition.onerror = () => { setIsListening(false); };
+    recognition.onend = () => { setIsListening(false); };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    setIsListening(false);
+  };
+
+  const toggleListening = () => {
+    if (isListening) stopListening();
+    else startListening();
   };
 
   const handleBack = () => { setMode('ambient'); setActiveFeature(null); setIsListening(false); };
@@ -1031,7 +1072,7 @@ export default function App() {
               backdropFilter: 'blur(12px)',
               borderTop: `1px solid ${isNight ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}`,
             }}>
-              <button onClick={() => setIsListening(!isListening)} style={{
+              <button onClick={toggleListening} style={{
                 width: 76, height: 76, borderRadius: '50%',
                 background: isListening
                   ? `linear-gradient(135deg, ${P.helpRed}, #C04040)`
