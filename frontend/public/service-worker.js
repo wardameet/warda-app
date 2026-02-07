@@ -30,6 +30,7 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   // Skip non-GET and API calls
   if (event.request.method !== 'GET') return;
+  if (event.request.url.startsWith('chrome-extension://')) return;
   if (event.request.url.includes('/api/')) return;
   if (event.request.url.includes('socket.io')) return;
 
