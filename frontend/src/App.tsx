@@ -750,6 +750,10 @@ export default function App() {
   const isListeningRef = useRef(false);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const useTranscribeRef = useRef(true);
+  const [recordingStatus, setRecordingStatus] = useState('');
 
   const stopRecognition = () => {
     if (recognitionRef.current) {
@@ -761,31 +765,98 @@ export default function App() {
     isListeningRef.current = false;
   };
 
-  const startRecognition = () => {
+  // ─── AWS Transcribe Recording ─────────────────────────────
+  const startTranscribeRecording = async () => {
+    if (isPlayingRef.current || isProcessing) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+      });
+      audioChunksRef.current = [];
+      transcriptRef.current = '';
+      setRecordingStatus('recording');
+      console.log('🎙️ AWS Transcribe recording started');
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start(250);
+      setIsListening(true);
+      isListeningRef.current = true;
+    } catch (err) {
+      console.log('❌ Mic access failed, falling back to Web Speech API', err);
+      useTranscribeRef.current = false;
+      startWebSpeechRecognition();
+    }
+  };
+
+  const stopTranscribeAndSend = async () => {
+    setIsListening(false);
+    isListeningRef.current = false;
+    setRecordingStatus('processing');
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    await new Promise(r => setTimeout(r, 300));
+    if (audioChunksRef.current.length === 0) {
+      setRecordingStatus('');
+      return;
+    }
+    try {
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]);
+        };
+        reader.readAsDataURL(audioBlob);
+      });
+      const res = await fetch(`${API_BASE}/api/voice/transcribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio: base64, format: 'ogg-opus', sampleRate: 16000 }),
+      });
+      const data = await res.json();
+      if (data.success && data.transcript?.trim()) {
+        setRecordingStatus('');
+        handleSend(data.transcript.trim());
+      } else {
+        setRecordingStatus('');
+        if (!data.success) {
+          console.log('Transcribe failed:', data.error, '- using Web Speech next time');
+          useTranscribeRef.current = false;
+        }
+      }
+    } catch (err) {
+      console.log('Transcribe request failed, switching to Web Speech API');
+      useTranscribeRef.current = false;
+      setRecordingStatus('');
+    }
+  };
+
+  // ─── Web Speech API Fallback ──────────────────────────────
+  const startWebSpeechRecognition = () => {
     if (isPlayingRef.current || isProcessing) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) { setConversationMode('type'); return; }
-
     const recognition = new SR();
     recognition.lang = 'en-GB';
-    recognition.interimResults = true;
+    recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-    recognition.continuous = true;
+    recognition.continuous = false;
     transcriptRef.current = '';
-
     recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + ' ';
-        } else {
-          interimTranscript = event.results[i][0].transcript;
-        }
+      const result = event.results[event.results.length - 1];
+      if (result && result[0]) {
+        transcriptRef.current = result[0].transcript.trim();
+        setInputText(transcriptRef.current);
       }
-      transcriptRef.current = finalTranscript.trim();
-      const display = (finalTranscript + interimTranscript).trim();
-      if (display) setInputText(display);
     };
     recognition.onerror = (e: any) => {
       if (e.error !== 'aborted') console.log('Speech error:', e.error);
@@ -793,15 +864,23 @@ export default function App() {
       isListeningRef.current = false;
     };
     recognition.onend = () => {
-      if (isListeningRef.current && !isPlayingRef.current) {
-        try { recognitionRef.current?.start(); } catch {}
-      }
+      // Don't auto-restart - user taps mic to send
+      setIsListening(false);
+      isListeningRef.current = false;
     };
-
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
     isListeningRef.current = true;
+  };
+
+  // ─── Start Listening (auto-selects method) ────────────────
+  const startRecognition = () => {
+    if (useTranscribeRef.current) {
+      startTranscribeRecording();
+    } else {
+      startWebSpeechRecognition();
+    }
   };
 
   const speakText = useCallback(async (text: string) => {
@@ -884,11 +963,14 @@ export default function App() {
 
   const toggleListening = () => {
     if (isListening) {
-      // Stop and send
-      const text = transcriptRef.current || inputText;
-      stopRecognition();
-      setInputText('');
-      if (text?.trim()) handleSend(text.trim());
+      if (useTranscribeRef.current && mediaRecorderRef.current) {
+        stopTranscribeAndSend();
+      } else {
+        const text = transcriptRef.current || inputText;
+        stopRecognition();
+        setInputText('');
+        if (text?.trim()) handleSend(text.trim());
+      }
     } else {
       startRecognition();
     }
@@ -1136,7 +1218,7 @@ export default function App() {
               <span style={{
                 fontSize: 16, fontWeight: 600,
                 color: isListening ? P.helpRed : P.textSoft,
-              }}>{isListening ? '🔴 Listening... tap to send' : '🎤 Tap to talk'}</span>
+              }}>{recordingStatus === 'processing' ? '⏳ Processing your words...' : isListening ? '🔴 Listening... tap to send' : '🎤 Tap to talk'}</span>
             </div>
           )}
 

@@ -1,10 +1,12 @@
 // ============================================================
 // WARDA — AWS Transcribe Speech-to-Text Service
-// Reliable cloud STT replacing browser Web Speech API
+// Converts webm/opus → PCM via ffmpeg, then streams to AWS
 // ============================================================
-
 const { TranscribeStreamingClient, StartStreamTranscriptionCommand } = require('@aws-sdk/client-transcribe-streaming');
-const { Readable } = require('stream');
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 const transcribeClient = new TranscribeStreamingClient({
   region: process.env.AWS_REGION || 'eu-west-2',
@@ -14,19 +16,31 @@ const transcribeClient = new TranscribeStreamingClient({
   }
 });
 
-// ─── Transcribe audio buffer (single shot) ──────────────────
-// For when tablet sends complete audio chunk
+// ─── Convert any audio to PCM using ffmpeg ──────────────────
+function convertToPCM(inputBuffer, inputFormat = 'webm') {
+  const tmpIn = path.join(os.tmpdir(), `warda_in_${Date.now()}.${inputFormat}`);
+  const tmpOut = path.join(os.tmpdir(), `warda_out_${Date.now()}.pcm`);
+  try {
+    fs.writeFileSync(tmpIn, inputBuffer);
+    execSync(`ffmpeg -i ${tmpIn} -f s16le -ar 16000 -ac 1 -acodec pcm_s16le ${tmpOut} -y 2>/dev/null`);
+    const pcmBuffer = fs.readFileSync(tmpOut);
+    return pcmBuffer;
+  } finally {
+    try { fs.unlinkSync(tmpIn); } catch {}
+    try { fs.unlinkSync(tmpOut); } catch {}
+  }
+}
+
+// ─── Transcribe PCM audio buffer ────────────────────────────
 async function transcribeAudio(audioBuffer, options = {}) {
   const {
-    languageCode = 'en-GB',       // British English default
-    mediaSampleRate = 16000,       // 16kHz standard
-    mediaEncoding = 'pcm',         // PCM audio
+    languageCode = 'en-GB',
+    mediaSampleRate = 16000,
+    mediaEncoding = 'pcm',
   } = options;
 
   try {
-    // Create audio stream from buffer
     const audioStream = async function* () {
-      // Split buffer into chunks for streaming
       const chunkSize = 4096;
       for (let i = 0; i < audioBuffer.length; i += chunkSize) {
         yield { AudioEvent: { AudioChunk: audioBuffer.slice(i, i + chunkSize) } };
@@ -42,7 +56,6 @@ async function transcribeAudio(audioBuffer, options = {}) {
 
     const response = await transcribeClient.send(command);
 
-    // Collect all transcript results
     let fullTranscript = '';
     let confidence = 0;
     let resultCount = 0;
@@ -62,7 +75,6 @@ async function transcribeAudio(audioBuffer, options = {}) {
     }
 
     const avgConfidence = resultCount > 0 ? confidence / resultCount : 0;
-
     return {
       success: true,
       transcript: fullTranscript.trim(),
@@ -70,42 +82,32 @@ async function transcribeAudio(audioBuffer, options = {}) {
       languageCode
     };
   } catch (error) {
-    console.error('Transcribe error:', error);
-    return {
-      success: false,
-      error: error.message,
-      transcript: '',
-      confidence: 0
-    };
+    console.error('Transcribe error:', error.Message || error.message);
+    return { success: false, error: error.Message || error.message, transcript: '', confidence: 0 };
   }
 }
 
 // ─── Transcribe from base64 audio ───────────────────────────
-// For when tablet sends base64-encoded audio
 async function transcribeBase64(base64Audio, options = {}) {
   try {
-    const audioBuffer = Buffer.from(base64Audio, 'base64');
+    let audioBuffer = Buffer.from(base64Audio, 'base64');
+    const format = options.mediaEncoding || 'pcm';
+
+    // If not already PCM, convert via ffmpeg
+    if (format !== 'pcm') {
+      const ext = format === 'ogg-opus' ? 'webm' : format;
+      console.log(`Converting ${format} audio (${audioBuffer.length} bytes) to PCM...`);
+      audioBuffer = convertToPCM(audioBuffer, ext);
+      console.log(`Converted to PCM: ${audioBuffer.length} bytes`);
+      // Override to PCM for Transcribe
+      options.mediaEncoding = 'pcm';
+    }
+
     return await transcribeAudio(audioBuffer, options);
   } catch (error) {
-    console.error('Base64 transcribe error:', error);
+    console.error('Base64 transcribe error:', error.message);
     return { success: false, error: error.message, transcript: '' };
   }
 }
 
-// ─── Simple text fallback for testing ───────────────────────
-// Used when Transcribe is not configured or for development
-function mockTranscribe(text) {
-  return {
-    success: true,
-    transcript: text,
-    confidence: 1.0,
-    languageCode: 'en-GB',
-    mock: true
-  };
-}
-
-module.exports = {
-  transcribeAudio,
-  transcribeBase64,
-  mockTranscribe
-};
+module.exports = { transcribeAudio, transcribeBase64 };
