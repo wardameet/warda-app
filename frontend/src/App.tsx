@@ -590,7 +590,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [weather] = useState({ temp: '4°C', icon: '☁️', desc: 'Cloudy' });
+  const [weather, setWeather] = useState({ temp: '—°C', icon: '☁️', desc: '' });
   const [pendingFamilyMessages, setPendingFamilyMessages] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -694,6 +694,33 @@ export default function App() {
     };
     checkMessages();
     const interval = setInterval(checkMessages, 60000);
+    return () => clearInterval(interval);
+  }, [deviceStatus, resident?.id]);
+
+  // ─── Fetch Weather ──────────────────────────────────────────────
+  useEffect(() => {
+    if (deviceStatus !== 'active' || !resident?.id) return;
+    const weatherIcons: Record<string, string> = {
+      'Sunny': '☀️', 'Clear': '🌙', 'Partly cloudy': '⛅', 'Cloudy': '☁️',
+      'Overcast': '☁️', 'Mist': '🌫️', 'Fog': '🌫️', 'Light rain': '🌧️',
+      'Rain': '🌧️', 'Heavy rain': '🌧️', 'Light snow': '🌨️', 'Snow': '❄️',
+      'Thunderstorm': '⛈️', 'Drizzle': '🌦️', 'Patchy rain possible': '🌦️',
+    };
+    const fetchWeather = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/orientation?residentId=${resident.id}`);
+        const data = await res.json();
+        if (data.success && data.weather) {
+          setWeather({
+            temp: `${data.weather.temperature}°C`,
+            icon: weatherIcons[data.weather.description] || '🌤️',
+            desc: data.weather.description,
+          });
+        }
+      } catch {}
+    };
+    fetchWeather();
+    const interval = setInterval(fetchWeather, 30 * 60 * 1000); // Every 30 mins
     return () => clearInterval(interval);
   }, [deviceStatus, resident?.id]);
 
