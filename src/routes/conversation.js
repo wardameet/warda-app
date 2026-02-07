@@ -55,19 +55,38 @@ router.post('/message', async (req, res) => {
     // If mood indicates concern, create an alert
     if (wardaResponse.mood === 'health_concern' || wardaResponse.mood === 'needs_comfort') {
       try {
-        await prisma.alert.create({
+        const resident = await prisma.user.findUnique({ where: { id: userId }, select: { preferredName: true, firstName: true, careHomeId: true } });
+        const resName = resident?.preferredName || resident?.firstName || 'Resident';
+        const alertType = wardaResponse.mood === 'health_concern' ? 'HEALTH' : 'MOOD';
+        const alertSeverity = wardaResponse.mood === 'health_concern' ? 'high' : 'medium';
+        const alertMessage = wardaResponse.mood === 'health_concern'
+          ? `Health concern: ${resName} said "${message.substring(0, 100)}"`
+          : `${resName} may need comfort. Said: "${message.substring(0, 100)}"`;
+
+        const alert = await prisma.alert.create({
           data: {
             userId,
-            careHomeId: (await prisma.user.findUnique({ where: { id: userId }, select: { careHomeId: true } }))?.careHomeId,
-            type: wardaResponse.mood === 'health_concern' ? 'HEALTH' : 'MOOD',
-            severity: wardaResponse.mood === 'health_concern' ? 'HIGH' : 'MEDIUM',
-            title: wardaResponse.mood === 'health_concern'
-              ? 'Health concern detected for resident'
-              : 'Resident may need comfort',
-            description: 'Resident said: "' + message.substring(0, 100) + '"',
-            status: 'ACTIVE'
+            type: alertType,
+            severity: alertSeverity,
+            message: alertMessage,
           }
         });
+
+        console.log('🚨 ALERT CREATED:', alertType, alertSeverity, '-', resName);
+
+        // Notify staff via WebSocket
+        const io = req.app.get('io');
+        if (io && resident?.careHomeId) {
+          io.to(`careHome-${resident.careHomeId}`).emit('staff-alert', {
+            id: alert.id,
+            type: alertType,
+            severity: alertSeverity,
+            message: alertMessage,
+            residentName: resName,
+            timestamp: new Date().toISOString()
+          });
+          console.log('📡 Staff notified via WebSocket for', resident.careHomeId);
+        }
       } catch (alertErr) {
         console.error('Failed to create alert:', alertErr);
       }

@@ -274,8 +274,13 @@ async function getWardaResponse(userMessage, conversationHistory, context) {
 
 function analyzeMood(userMessage, response, profile) {
   const lower = userMessage.toLowerCase();
-  if (lower.match(/\b(sad|lonely|miss|crying|tears|lost|alone|depressed|grief)\b/)) return 'needs_comfort';
-  if (lower.match(/\b(pain|hurt|unwell|sick|dizzy|fall|fell|chest|breathe|ache|sore)\b/)) return 'health_concern';
+  // Catch phrase-based patterns first
+  if (lower.match(/not\s+feeling\s+(well|good|great|right|ok|okay)/)) return 'health_concern';
+  if (lower.match(/feel(ing)?\s+(terrible|awful|dreadful|horrible|rough|bad)/)) return 'health_concern';
+  if (lower.match(/i\s+(don'?t|cant|cannot)\s+feel/)) return 'health_concern';
+  if (lower.match(/something('?s| is)\s+wrong/)) return 'health_concern';
+  if (lower.match(/\b(sad|lonely|miss|crying|tears|lost|alone|depressed|grief|hopeless|dont want|give up|no point|nobody cares|forgotten)\b/)) return 'needs_comfort';
+  if (lower.match(/\b(pain|hurt|unwell|sick|dizzy|fall|fell|chest|breathe|ache|sore|not feeling well|not well|feeling ill|feeling sick|poorly|nauseous|vomit|bleed|bleeding|faint|weak|cant move|cant walk|cant see|headache|stomach)\b/)) return 'health_concern';
   if (lower.match(/\b(scared|afraid|worried|anxious|confused|dont know|where am i)\b/)) return 'anxious';
   if (lower.match(/\b(happy|good|lovely|wonderful|great|blessed|thankful)\b/)) return 'positive';
   if (lower.match(/\b(bored|nothing|tired|quiet|sleepy)\b/)) return 'low_energy';

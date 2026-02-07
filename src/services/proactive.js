@@ -400,8 +400,7 @@ function startProactiveEngine(io, intervalMinutes = 30) {
             userId: msg.residentId,
             type: 'PROACTIVE_INTERACTION',
             value: msg.type,
-            notes: msg.message.substring(0, 200),
-            severity: msg.context?.priority === 'high' ? 'MEDIUM' : 'LOW'
+            notes: msg.message.substring(0, 200)
           }
         }).catch(err => console.error('Failed to log proactive:', err));
       }
