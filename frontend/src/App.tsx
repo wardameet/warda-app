@@ -780,10 +780,20 @@ export default function App() {
 
   const handleBack = () => { setMode('ambient'); setActiveFeature(null); setIsListening(false); };
 
+  // ─── Warda Tips (rotate when no real messages) ──────────────
+  const wardaTips = [
+    { icon: '🌹', title: "I'm here whenever you need me", subtitle: 'Just tap Talk to Warda, dear' },
+    { icon: '☀️', title: 'Shall we have a wee chat?', subtitle: 'I\'d love to hear about your day' },
+    { icon: '🎵', title: 'Fancy some music?', subtitle: 'Tap Music and I\'ll play your favourites' },
+    { icon: '👨‍👩‍👧', title: 'Want to send a message?', subtitle: 'Just tell me and I\'ll pass it on to family' },
+    { icon: '📖', title: 'Tell me a story', subtitle: 'I love hearing about your memories' },
+    { icon: '🌙', title: 'Rest well tonight', subtitle: 'I\'ll be here if you need me' },
+  ];
+  const tipIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % wardaTips.length; // Rotate every 5 mins
+  const currentTip = wardaTips[isNight ? 5 : tipIndex];
   const [suggestion] = useState({
-    icon: '📷', title: 'Sarah sent photos today!',
-    subtitle: 'Would you like to see them, dear?',
-    onTap: () => { setActiveFeature('photos'); setMode('feature'); },
+    ...currentTip,
+    onTap: () => openConversation('voice'),
   });
 
   // ─── Status Screens ────────────────────────────────────────────
@@ -887,7 +897,7 @@ export default function App() {
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           justifyContent: 'flex-start',
-          height: 'calc(100vh - 100px)',
+          minHeight: 'calc(100vh - 100px)',
           paddingTop: 4,
           zIndex: 5, position: 'relative',
         }}>
