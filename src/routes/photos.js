@@ -62,14 +62,16 @@ router.post('/upload', upload.single('photo'), async (req, res) => {
     // Store photo record in database
     const photoRecord = await prisma.message.create({
       data: {
+        sender: uploadedBy || 'family',
         senderId: uploadedBy || 'family',
+        userId: residentId,
         recipientId: residentId,
         content: caption || 'A photo was sent to you',
         type: 'PHOTO',
         senderType: 'FAMILY',
         mediaUrl: result.fullKey,
-        thumbnailUrl: result.thumbKey,
-        isDelivered: false  // Warda will deliver it conversationally
+        thumbnailUrl: result.thumbKey || null,
+        isDelivered: false
       }
     });
 

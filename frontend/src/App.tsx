@@ -585,6 +585,134 @@ function TriangleCircle({ icon, label, onClick, variant = 'warda', animDelay = 0
 // ═══════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════
+
+// ─── Photos Screen Component ─────────────────────────────────
+function PhotosScreen({ residentId, isNight }: { residentId?: string; isNight: boolean }) {
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+
+  useEffect(() => {
+    if (!residentId) return;
+    const fetchPhotos = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/photos/${residentId}`);
+        const data = await res.json();
+        if (data.success && data.photos?.length > 0) {
+          setPhotos(data.photos);
+        }
+      } catch (err) {
+        console.log('Failed to load photos:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPhotos();
+    // Refresh every 30 seconds for new photos
+    const interval = setInterval(fetchPhotos, 30000);
+    return () => clearInterval(interval);
+  }, [residentId]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: 40 }}>
+        <span style={{ fontSize: 48, animation: 'pulse 1.4s ease infinite' }}>📷</span>
+        <p style={{ fontSize: 17, color: P.textSoft, fontFamily: fonts.body }}>Loading your photos...</p>
+      </div>
+    );
+  }
+
+  // Full-screen photo viewer
+  if (selectedPhoto) {
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0,0,0,0.92)', zIndex: 1000,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <img src={selectedPhoto.fullUrl || selectedPhoto.thumbUrl} alt={selectedPhoto.caption || 'Family photo'}
+          style={{ maxWidth: '90%', maxHeight: '75vh', borderRadius: 16, objectFit: 'contain', boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }} />
+        {selectedPhoto.caption && selectedPhoto.caption !== 'A photo was sent to you' && (
+          <p style={{ color: '#fff', fontSize: 18, fontFamily: fonts.body, marginTop: 16, textAlign: 'center', maxWidth: '80%' }}>
+            {selectedPhoto.caption}
+          </p>
+        )}
+        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: fonts.body, marginTop: 8 }}>
+          From {selectedPhoto.from || 'your family'} · {new Date(selectedPhoto.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </p>
+        <button onClick={() => setSelectedPhoto(null)} style={{
+          marginTop: 24, padding: '14px 36px', borderRadius: 24,
+          background: P.teal, border: 'none', color: '#fff',
+          fontSize: 17, fontWeight: 600, fontFamily: fonts.body, cursor: 'pointer',
+        }}>← Back to Photos</button>
+      </div>
+    );
+  }
+
+  // No photos yet
+  if (photos.length === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%', textAlign: 'center' }}>
+        <span style={{ fontSize: 64 }}>📸</span>
+        <h3 style={{ fontSize: 22, fontFamily: fonts.heading, color: P.teal }}>Family Photos</h3>
+        <p style={{ fontSize: 15, color: P.textSoft, fontFamily: fonts.body, lineHeight: 1.6 }}>
+          When your family sends photos, they'll appear here for you to enjoy anytime.
+        </p>
+        <div style={{
+          padding: '16px 22px', borderRadius: 16, marginTop: 8,
+          background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)',
+          fontSize: 15, color: P.teal, fontFamily: fonts.body,
+        }}>
+          📷 Family members can share photos through the Family App
+        </div>
+      </div>
+    );
+  }
+
+  // Photo gallery grid
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 700, margin: '0 auto', width: '100%' }}>
+      <div style={{ textAlign: 'center' }}>
+        <h3 style={{ fontSize: 22, fontFamily: fonts.heading, color: P.teal, marginBottom: 4 }}>Family Photos</h3>
+        <p style={{ fontSize: 14, color: P.textMuted, fontFamily: fonts.body }}>{photos.length} photo{photos.length !== 1 ? 's' : ''} from your family</p>
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+        gap: 12, padding: '4px 0',
+      }}>
+        {photos.map((photo) => (
+          <button key={photo.id} onClick={() => setSelectedPhoto(photo)} style={{
+            position: 'relative', aspectRatio: '1', borderRadius: 16, overflow: 'hidden',
+            border: `2px solid ${isNight ? 'rgba(255,255,255,0.06)' : P.tealMist}`,
+            cursor: 'pointer', padding: 0, background: isNight ? 'rgba(255,255,255,0.05)' : P.surfaceGlass,
+          }}>
+            {(photo.thumbUrl || photo.fullUrl) ? (
+              <img src={photo.thumbUrl || photo.fullUrl} alt={photo.caption || 'Photo'}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 40 }}>📷</span>
+              </div>
+            )}
+            <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                padding: '8px 10px', background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
+                color: '#fff', fontSize: 12, fontFamily: fonts.body,
+              }}>
+                {photo.caption && photo.caption !== 'A photo was sent to you' && (
+                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{photo.caption}</div>
+                )}
+                <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2 }}>
+                  {photo.from && photo.from !== 'family' ? photo.from : 'Family'} · {new Date(photo.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                </div>
+              </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   // ─── Device Status ────────────────────────────────────────────
   // Device is pre-activated at HQ. App just checks status.
@@ -1361,20 +1489,7 @@ export default function App() {
 
             {/* ─── PHOTOS ─── */}
             {activeFeature === 'photos' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%', textAlign: 'center' }}>
-                <span style={{ fontSize: 64 }}>📸</span>
-                <h3 style={{ fontSize: 22, fontFamily: fonts.heading, color: P.teal }}>Family Photos</h3>
-                <p style={{ fontSize: 15, color: P.textSoft, fontFamily: fonts.body, lineHeight: 1.6 }}>
-                  When your family sends photos, they'll appear here for you to enjoy anytime.
-                </p>
-                <div style={{
-                  padding: '16px 22px', borderRadius: 16, marginTop: 8,
-                  background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)',
-                  fontSize: 15, color: P.teal, fontFamily: fonts.body,
-                }}>
-                  📷 Family members can share photos through the Family App
-                </div>
-              </div>
+              <PhotosScreen residentId={resident?.id} isNight={isNight} />
             )}
 
             {/* ─── FAITH ─── */}
