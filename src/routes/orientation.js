@@ -22,8 +22,7 @@ router.get('/', async (req, res) => {
       });
       if (user?.careHome?.address) {
         // Extract city from address for weather lookup
-        const parts = user.careHome.address.split(',');
-        location = parts[parts.length - 2]?.trim() + ',GB' || location;
+        location = user.careHome.city ? user.careHome.city + ",GB" : location;
       }
     } else if (req.query.location) {
       location = req.query.location;
