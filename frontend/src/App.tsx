@@ -1165,28 +1165,213 @@ export default function App() {
       {/* ═══ FEATURE MODE ═══════════════════════════════════════ */}
       {mode === 'feature' && (
         <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          height: 'calc(100vh - 120px)', zIndex: 10,
+          display: 'flex', flexDirection: 'column',
+          height: '100vh', zIndex: 10,
+          animation: 'fadeIn 0.35s ease',
         }}>
+          {/* Feature Header */}
           <div style={{
-            background: P.surface, borderRadius: 28, padding: '40px 50px',
-            textAlign: 'center', boxShadow: P.shadowMd, maxWidth: 400,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '16px 24px',
+            background: isNight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.85)',
+            backdropFilter: 'blur(12px)',
           }}>
-            <div style={{ fontSize: 52, marginBottom: 12 }}>
-              {ALL_FEATURES.find(f => f.id === activeFeature)?.icon}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 28 }}>{ALL_FEATURES.find(f => f.id === activeFeature)?.icon}</span>
+              <span style={{ fontSize: 20, fontWeight: 600, fontFamily: fonts.heading, color: P.teal }}>
+                {ALL_FEATURES.find(f => f.id === activeFeature)?.label}
+              </span>
             </div>
-            <h2 style={{ fontSize: 26, fontFamily: fonts.heading, color: P.teal, margin: '0 0 8px' }}>
-              {ALL_FEATURES.find(f => f.id === activeFeature)?.label}
-            </h2>
-            <p style={{ fontSize: 15, color: P.textSoft, marginBottom: 24 }}>
-              Coming soon — Warda is learning this for you
-            </p>
             <button onClick={handleBack} style={{
-              padding: '14px 40px', borderRadius: 20,
+              padding: '10px 24px', borderRadius: 16,
               background: `linear-gradient(135deg, ${P.teal}, ${P.tealDeep})`,
-              border: 'none', color: '#fff', fontSize: 16, fontWeight: 600,
+              border: 'none', color: '#fff', fontSize: 14, fontWeight: 600,
               fontFamily: fonts.body, cursor: 'pointer',
             }}>← Back to Warda</button>
+          </div>
+
+          {/* Feature Content */}
+          <div style={{
+            flex: 1, overflowY: 'auto', padding: '24px',
+            display: 'flex', flexDirection: 'column', gap: 16,
+          }}>
+            {/* ─── FAMILY ─── */}
+            {activeFeature === 'family' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+                {[
+                  { name: 'Abid', relation: 'Son', detail: 'Lives in Newmachar · Visits every weekend', emoji: '👨' },
+                  { name: 'Fatima', relation: 'Daughter', detail: 'Lives in Casablanca · Calls every Thursday', emoji: '👩' },
+                  { name: 'Yasmine', relation: 'Granddaughter', detail: "Abid's daughter · Age 8", emoji: '👧' },
+                  { name: 'Omar', relation: 'Grandson', detail: "Abid's son · Age 5", emoji: '👦' },
+                  { name: 'Leila', relation: 'Granddaughter', detail: "Fatima's daughter · Age 12", emoji: '👧' },
+                ].map((person, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 16,
+                    padding: '18px 22px', borderRadius: 20,
+                    background: isNight ? 'rgba(255,255,255,0.05)' : P.surfaceGlass,
+                    border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.06)' : P.tealMist}`,
+                  }}>
+                    <span style={{ fontSize: 38 }}>{person.emoji}</span>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 600, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.heading }}>
+                        {person.name} <span style={{ fontWeight: 400, fontSize: 14, color: P.textSoft }}>— {person.relation}</span>
+                      </div>
+                      <div style={{ fontSize: 14, color: P.textMuted, marginTop: 2 }}>{person.detail}</div>
+                    </div>
+                  </div>
+                ))}
+                <div style={{
+                  padding: '16px 22px', borderRadius: 16, marginTop: 8,
+                  background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)',
+                  textAlign: 'center', fontSize: 15, color: P.teal, fontFamily: fonts.body,
+                }}>
+                  💬 Say "Tell Abid I love him" to send a message through Warda
+                </div>
+              </div>
+            )}
+
+            {/* ─── MUSIC ─── */}
+            {activeFeature === 'music' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+                <p style={{ fontSize: 16, color: isNight ? '#E8E0D8' : P.textSoft, textAlign: 'center', fontFamily: fonts.body }}>
+                  Hafsa's favourite music
+                </p>
+                {[
+                  { title: 'Andalusian Classical', desc: 'Traditional music from Morocco and Al-Andalus', emoji: '🎵' },
+                  { title: 'Fairuz', desc: 'The voice of Lebanon — timeless classics', emoji: '🎤' },
+                  { title: 'Scottish Folk Songs', desc: 'Songs from the highlands and lowlands', emoji: '🏴󠁧󠁢󠁳󠁣󠁴󠁿' },
+                ].map((m, i) => (
+                  <button key={i} onClick={() => { openConversation('type'); }} style={{
+                    display: 'flex', alignItems: 'center', gap: 16,
+                    padding: '18px 22px', borderRadius: 20, width: '100%',
+                    background: isNight ? 'rgba(255,255,255,0.05)' : P.surfaceGlass,
+                    border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.06)' : P.tealMist}`,
+                    cursor: 'pointer', textAlign: 'left',
+                  }}>
+                    <span style={{ fontSize: 36 }}>{m.emoji}</span>
+                    <div>
+                      <div style={{ fontSize: 17, fontWeight: 600, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.heading }}>{m.title}</div>
+                      <div style={{ fontSize: 13, color: P.textMuted, marginTop: 2 }}>{m.desc}</div>
+                    </div>
+                  </button>
+                ))}
+                <div style={{
+                  padding: '16px 22px', borderRadius: 16, marginTop: 8,
+                  background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)',
+                  textAlign: 'center', fontSize: 15, color: P.teal, fontFamily: fonts.body,
+                }}>
+                  🎵 Say "Play me some music" to ask Warda for music
+                </div>
+              </div>
+            )}
+
+            {/* ─── PHOTOS ─── */}
+            {activeFeature === 'photos' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%', textAlign: 'center' }}>
+                <span style={{ fontSize: 64 }}>📸</span>
+                <h3 style={{ fontSize: 22, fontFamily: fonts.heading, color: P.teal }}>Family Photos</h3>
+                <p style={{ fontSize: 15, color: P.textSoft, fontFamily: fonts.body, lineHeight: 1.6 }}>
+                  When your family sends photos, they'll appear here for you to enjoy anytime.
+                </p>
+                <div style={{
+                  padding: '16px 22px', borderRadius: 16, marginTop: 8,
+                  background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)',
+                  fontSize: 15, color: P.teal, fontFamily: fonts.body,
+                }}>
+                  📷 Family members can share photos through the Family App
+                </div>
+              </div>
+            )}
+
+            {/* ─── FAITH ─── */}
+            {activeFeature === 'faith' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+                <div style={{
+                  padding: '24px', borderRadius: 20, textAlign: 'center',
+                  background: isNight ? 'rgba(255,255,255,0.05)' : P.surfaceGlass,
+                  border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.06)' : P.tealMist}`,
+                }}>
+                  <span style={{ fontSize: 42 }}>🕌</span>
+                  <h3 style={{ fontSize: 20, fontFamily: fonts.heading, color: P.teal, margin: '8px 0' }}>Islam — Sunni</h3>
+                  <p style={{ fontSize: 14, color: P.textSoft }}>Bismillah ar-Rahman ar-Raheem</p>
+                </div>
+                <h4 style={{ fontSize: 16, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.heading }}>Prayer Times</h4>
+                {[
+                  { name: 'Fajr', time: '06:30', emoji: '🌅' },
+                  { name: 'Dhuhr', time: '12:30', emoji: '☀️' },
+                  { name: 'Asr', time: '15:00', emoji: '🌤️' },
+                  { name: 'Maghrib', time: '17:00', emoji: '🌇' },
+                  { name: 'Isha', time: '19:30', emoji: '🌙' },
+                ].map((p, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 20px', borderRadius: 16,
+                    background: isNight ? 'rgba(255,255,255,0.04)' : P.surfaceGlass,
+                    border: `1px solid ${isNight ? 'rgba(255,255,255,0.04)' : P.tealMist}`,
+                  }}>
+                    <span style={{ fontSize: 15, color: isNight ? '#E8E0D8' : P.text }}>{p.emoji} {p.name}</span>
+                    <span style={{ fontSize: 16, fontWeight: 600, color: P.teal }}>{p.time}</span>
+                  </div>
+                ))}
+                <h4 style={{ fontSize: 16, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.heading, marginTop: 8 }}>Favourite Scriptures</h4>
+                {['Ayat al-Kursi', 'Surah Al-Fatiha', 'Surah Ar-Rahman'].map((s, i) => (
+                  <div key={i} style={{
+                    padding: '12px 20px', borderRadius: 14,
+                    background: isNight ? 'rgba(255,255,255,0.04)' : P.surfaceGlass,
+                    border: `1px solid ${isNight ? 'rgba(255,255,255,0.04)' : P.tealMist}`,
+                    fontSize: 15, color: isNight ? '#E8E0D8' : P.text,
+                  }}>📖 {s}</div>
+                ))}
+                <div style={{
+                  padding: '16px 22px', borderRadius: 16, marginTop: 8,
+                  background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)',
+                  textAlign: 'center', fontSize: 15, color: P.teal, fontFamily: fonts.body,
+                }}>
+                  🤲 Say "I'd like to pray" and Warda will help you
+                </div>
+              </div>
+            )}
+
+            {/* ─── MY DAY ─── */}
+            {activeFeature === 'myday' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+                <div style={{
+                  padding: '20px 24px', borderRadius: 20, textAlign: 'center',
+                  background: isNight ? 'rgba(255,255,255,0.05)' : P.surfaceGlass,
+                  border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.06)' : P.tealMist}`,
+                }}>
+                  <div style={{ fontSize: 36 }}>📅</div>
+                  <h3 style={{ fontSize: 20, fontFamily: fonts.heading, color: P.teal, margin: '8px 0' }}>
+                    {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </h3>
+                </div>
+                <h4 style={{ fontSize: 16, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.heading }}>Today's Schedule</h4>
+                {[
+                  { time: '06:30', activity: 'Fajr Prayer', emoji: '🌅' },
+                  { time: '08:00', activity: 'Breakfast', emoji: '🍳' },
+                  { time: '09:30', activity: 'Morning Activity', emoji: '🧶' },
+                  { time: '12:30', activity: 'Dhuhr Prayer', emoji: '☀️' },
+                  { time: '12:45', activity: 'Lunch', emoji: '🍽️' },
+                  { time: '14:00', activity: 'Afternoon Rest', emoji: '😴' },
+                  { time: '15:00', activity: 'Asr Prayer & Tea Time', emoji: '🫖' },
+                  { time: '17:00', activity: 'Maghrib Prayer', emoji: '🌇' },
+                  { time: '17:30', activity: 'Dinner', emoji: '🍲' },
+                  { time: '19:30', activity: 'Isha Prayer', emoji: '🌙' },
+                  { time: '20:00', activity: 'Relaxation & Warda Time', emoji: '🌹' },
+                ].map((item, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    padding: '12px 18px', borderRadius: 14,
+                    background: isNight ? 'rgba(255,255,255,0.04)' : P.surfaceGlass,
+                    border: `1px solid ${isNight ? 'rgba(255,255,255,0.04)' : P.tealMist}`,
+                  }}>
+                    <span style={{ fontSize: 22 }}>{item.emoji}</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: P.teal, minWidth: 50 }}>{item.time}</span>
+                    <span style={{ fontSize: 15, color: isNight ? '#E8E0D8' : P.text }}>{item.activity}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
