@@ -859,14 +859,14 @@ export default function App() {
       {mode === 'ambient' && (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-start',
           height: 'calc(100vh - 100px)',
-          paddingTop: 4, paddingBottom: 16,
+          paddingTop: 4,
           zIndex: 5, position: 'relative',
         }}>
           {/* Warda + Greeting */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <TriangleCircle variant="warda" label="" onClick={() => openConversation('voice')} animDelay={0} />
+            <TriangleCircle variant="warda" label="" onClick={() => {}} animDelay={0} />
             <h1 style={{
               fontSize: 22, fontFamily: fonts.heading, fontWeight: 400,
               color: isNight ? 'rgba(232,224,216,0.85)' : P.teal,
@@ -876,13 +876,13 @@ export default function App() {
           </div>
 
           {/* Talk + Type */}
-          <div style={{ display: 'flex', gap: 44, justifyContent: 'center' }}>
+          <div style={{ display: 'flex', gap: 44, justifyContent: 'center', marginTop: 20 }}>
             <TriangleCircle variant="talk" icon="🎤" label="Talk to Warda" onClick={() => openConversation('voice')} animDelay={150} />
             <TriangleCircle variant="type" icon="⌨️" label="Type to Warda" onClick={() => openConversation('type')} animDelay={250} />
           </div>
 
           {/* Features */}
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: '0 20px' }}>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: '0 20px', marginTop: 24 }}>
             {features.map((f, i) => (
               <FeatureIcon key={f.id} feature={f} onTap={(id) => {
                 setActiveFeature(id); setMode('feature');
@@ -891,8 +891,17 @@ export default function App() {
           </div>
 
           {/* Suggestion */}
-          <div style={{ padding: '0 28px', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ padding: '0 28px', width: '100%', display: 'flex', justifyContent: 'center', marginTop: 20 }}>
             <SuggestionCard suggestion={suggestion} isNight={isNight} />
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            marginTop: 'auto', paddingBottom: 10, textAlign: 'center',
+            fontSize: 11, color: isNight ? 'rgba(232,224,216,0.25)' : P.textLight,
+            fontFamily: fonts.body,
+          }}>
+            © {new Date().getFullYear()} Eletiser Ltd · Meet Warda™ · You're Never Alone
           </div>
         </div>
       )}
