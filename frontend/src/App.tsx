@@ -803,28 +803,48 @@ export default function App() {
 
   // ─── Speech Recognition (Web Speech API) ────────────────────
   const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef<string>('');
+
   const startListening = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
-      // Fallback: switch to type mode if no speech API
       setConversationMode('type');
       return;
     }
     const recognition = new SR();
     recognition.lang = 'en-GB';
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
-    recognition.continuous = false;
+    recognition.continuous = true;
+    transcriptRef.current = '';
 
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      if (transcript?.trim()) {
-        handleSend(transcript.trim());
+      let finalTranscript = '';
+      let interimTranscript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        } else {
+          interimTranscript = event.results[i][0].transcript;
+        }
       }
+      transcriptRef.current = finalTranscript.trim();
+      // Show interim text so user sees what's being heard
+      const display = (finalTranscript + interimTranscript).trim();
+      if (display) {
+        setInputText(display);
+      }
+    };
+    recognition.onerror = (e: any) => {
+      if (e.error !== 'aborted') console.log('Speech error:', e.error);
       setIsListening(false);
     };
-    recognition.onerror = () => { setIsListening(false); };
-    recognition.onend = () => { setIsListening(false); };
+    recognition.onend = () => {
+      // If still supposed to be listening, restart (handles browser auto-stop)
+      if (isListening && recognitionRef.current) {
+        try { recognitionRef.current.start(); } catch {}
+      }
+    };
 
     recognitionRef.current = recognition;
     recognition.start();
@@ -832,10 +852,18 @@ export default function App() {
   };
 
   const stopListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
     setIsListening(false);
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null; // Prevent restart
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    // Send whatever was captured
+    const text = transcriptRef.current || inputText;
+    setInputText('');
+    if (text?.trim()) {
+      handleSend(text.trim());
+    }
   };
 
   const toggleListening = () => {
@@ -1085,7 +1113,7 @@ export default function App() {
               <span style={{
                 fontSize: 16, fontWeight: 600,
                 color: isListening ? P.helpRed : P.textSoft,
-              }}>{isListening ? 'Listening... tap when finished' : 'Tap to talk'}</span>
+              }}>{isListening ? '🔴 Listening... tap to send' : '🎤 Tap to talk'}</span>
             </div>
           )}
 
