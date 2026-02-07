@@ -745,8 +745,71 @@ export default function App() {
   }, [conversationMode, mode]);
 
   // ─── Text-to-Speech (Polly) ───────────────────────────────────
+  const isPlayingRef = useRef(false);
+  const shouldAutoListenRef = useRef(false);
+  const isListeningRef = useRef(false);
+  const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef<string>('');
+
+  const stopRecognition = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null;
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+    isListeningRef.current = false;
+  };
+
+  const startRecognition = () => {
+    if (isPlayingRef.current || isProcessing) return;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { setConversationMode('type'); return; }
+
+    const recognition = new SR();
+    recognition.lang = 'en-GB';
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = true;
+    transcriptRef.current = '';
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      let interimTranscript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        } else {
+          interimTranscript = event.results[i][0].transcript;
+        }
+      }
+      transcriptRef.current = finalTranscript.trim();
+      const display = (finalTranscript + interimTranscript).trim();
+      if (display) setInputText(display);
+    };
+    recognition.onerror = (e: any) => {
+      if (e.error !== 'aborted') console.log('Speech error:', e.error);
+      setIsListening(false);
+      isListeningRef.current = false;
+    };
+    recognition.onend = () => {
+      if (isListeningRef.current && !isPlayingRef.current) {
+        try { recognitionRef.current?.start(); } catch {}
+      }
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+    isListeningRef.current = true;
+  };
+
   const speakText = useCallback(async (text: string) => {
     try {
+      // Stop mic while Warda speaks
+      stopRecognition();
+      isPlayingRef.current = true;
+
       const res = await fetch(`${API_BASE}/api/voice/speak`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -755,10 +818,19 @@ export default function App() {
       const data = await res.json();
       if (data.success && data.audio) {
         const audio = new Audio(`data:${data.contentType};base64,${data.audio}`);
-        audio.play().catch(() => {}); // Ignore autoplay restrictions
+        audio.onended = () => {
+          isPlayingRef.current = false;
+          if (shouldAutoListenRef.current) {
+            setTimeout(() => startRecognition(), 400);
+          }
+        };
+        audio.onerror = () => { isPlayingRef.current = false; };
+        audio.play().catch(() => { isPlayingRef.current = false; });
+      } else {
+        isPlayingRef.current = false;
       }
     } catch {
-      // Silent fallback — no TTS is fine, text still shows
+      isPlayingRef.current = false;
     }
   }, []);
 
@@ -809,77 +881,20 @@ export default function App() {
   const openConversation = (initial: 'voice' | 'type') => {
     setConversationMode(initial);
     setMode('conversation');
+    shouldAutoListenRef.current = initial === 'voice';
     startConversation();
   };
 
-  // ─── Speech Recognition (Web Speech API) ────────────────────
-  const recognitionRef = useRef<any>(null);
-  const transcriptRef = useRef<string>('');
-
-  const startListening = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      setConversationMode('type');
-      return;
-    }
-    const recognition = new SR();
-    recognition.lang = 'en-GB';
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    recognition.continuous = true;
-    transcriptRef.current = '';
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + ' ';
-        } else {
-          interimTranscript = event.results[i][0].transcript;
-        }
-      }
-      transcriptRef.current = finalTranscript.trim();
-      // Show interim text so user sees what's being heard
-      const display = (finalTranscript + interimTranscript).trim();
-      if (display) {
-        setInputText(display);
-      }
-    };
-    recognition.onerror = (e: any) => {
-      if (e.error !== 'aborted') console.log('Speech error:', e.error);
-      setIsListening(false);
-    };
-    recognition.onend = () => {
-      // If still supposed to be listening, restart (handles browser auto-stop)
-      if (isListening && recognitionRef.current) {
-        try { recognitionRef.current.start(); } catch {}
-      }
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
-  };
-
-  const stopListening = () => {
-    setIsListening(false);
-    if (recognitionRef.current) {
-      recognitionRef.current.onend = null; // Prevent restart
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-    }
-    // Send whatever was captured
-    const text = transcriptRef.current || inputText;
-    setInputText('');
-    if (text?.trim()) {
-      handleSend(text.trim());
-    }
-  };
-
   const toggleListening = () => {
-    if (isListening) stopListening();
-    else startListening();
+    if (isListening) {
+      // Stop and send
+      const text = transcriptRef.current || inputText;
+      stopRecognition();
+      setInputText('');
+      if (text?.trim()) handleSend(text.trim());
+    } else {
+      startRecognition();
+    }
   };
 
   const handleBack = () => { setMode('ambient'); setActiveFeature(null); setIsListening(false); };
