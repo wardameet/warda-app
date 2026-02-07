@@ -332,7 +332,7 @@ function useTimeGreeting(name = 'Friend') {
   const h = now.getHours();
   const time = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
   const date = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const isNight = h >= 21 || h < 6;
+  const isNight = true; // Always dark mode — Warda's signature look
 
   let greeting: string;
   if (h < 6) greeting = `Rest well, ${name}`;
