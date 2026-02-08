@@ -59,7 +59,7 @@ router.post('/login', async (req, res) => {
 router.get('/residents', gpAuth, async (req, res) => {
   try {
     const residents = await prisma.user.findMany({
-      where: { role: 'RESIDENT' },
+      where: { status: 'ACTIVE' },
       select: { id: true, firstName: true, lastName: true, dateOfBirth: true, roomNumber: true, careHomeId: true }
     });
     res.json({ success: true, data: residents });
