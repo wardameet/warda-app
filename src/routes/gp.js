@@ -84,7 +84,7 @@ router.get('/health-summary/:userId', gpAuth, async (req, res) => {
     const alerts = await prisma.alert.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 20 });
     const since = new Date();
     since.setDate(since.getDate() - days);
-    const conversationCount = await prisma.conversation.count({ where: { userId, createdAt: { gte: since } } });
+    const conversationCount = await prisma.conversation.count({ where: { userId, startedAt: { gte: since } } });
     const lifeStoriesCount = await prisma.healthLog.count({ where: { userId, type: 'LIFE_STORY' } });
     res.json({
       success: true,
