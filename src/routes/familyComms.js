@@ -28,7 +28,9 @@ router.post('/send-message', async (req, res) => {
     // Store message
     const message = await prisma.message.create({
       data: {
+        sender: senderName || 'family',
         senderId: senderId || 'family',
+        userId: residentId,
         recipientId: residentId,
         content,
         type: 'TEXT',

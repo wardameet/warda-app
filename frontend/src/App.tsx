@@ -586,6 +586,312 @@ function TriangleCircle({ icon, label, onClick, variant = 'warda', animDelay = 0
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════
 
+// ─── Family & Friends Screen Component ────────────────────────
+function FamilyScreen({ residentId, isNight, openConversation }: { residentId?: string; isNight: boolean; openConversation: (mode: 'voice' | 'type') => void }) {
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [pendingMessages, setPendingMessages] = useState<any[]>([]);
+  const [selectedContact, setSelectedContact] = useState<any>(null);
+  const [thread, setThread] = useState<any[]>([]);
+  const [loadingThread, setLoadingThread] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [replyingTo, setReplyingTo] = useState<any>(null);
+
+  // Load contacts from DB
+  useEffect(() => {
+    if (!residentId) return;
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/family/contacts/${residentId}`);
+        const data = await res.json();
+        if (data.success) setContacts(data.contacts || []);
+      } catch {}
+    };
+    load();
+  }, [residentId]);
+
+  // Load pending messages
+  useEffect(() => {
+    if (!residentId) return;
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/family-comms/pending/${residentId}`);
+        const data = await res.json();
+        if (data.success) setPendingMessages(data.messages || []);
+      } catch {}
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [residentId]);
+
+  // Load thread when contact selected
+  const openThread = async (contact: any) => {
+    setSelectedContact(contact);
+    setLoadingThread(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/family-comms/thread/${residentId}?limit=20`);
+      const data = await res.json();
+      if (data.success) {
+        // Filter messages for this contact
+        const contactMessages = data.messages.filter((m: any) =>
+          m.senderId === contact.id || m.senderName?.toLowerCase().includes(contact.name.toLowerCase())
+        );
+        setThread(contactMessages.length > 0 ? contactMessages : data.messages);
+      }
+    } catch {}
+    setLoadingThread(false);
+  };
+
+  const markDelivered = async (messageId: string) => {
+    try {
+      await fetch(`${API_BASE}/api/family-comms/mark-delivered`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId }),
+      });
+      setPendingMessages(prev => prev.filter(m => m.id !== messageId));
+    } catch {}
+  };
+
+  const sendReply = async (text: string, recipientName: string) => {
+    if (!text.trim() || !residentId) return;
+    try {
+      await fetch(`${API_BASE}/api/family-comms/resident-reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId, recipientName, content: text.trim() }),
+      });
+      setReplyText('');
+      setReplyingTo(null);
+    } catch {}
+  };
+
+  // Get emoji for relationship
+  const getEmoji = (rel: string) => {
+    const r = rel.toLowerCase();
+    if (r.includes('son')) return '👨';
+    if (r.includes('daughter') && !r.includes('grand')) return '👩';
+    if (r.includes('granddaughter')) return '👧';
+    if (r.includes('grandson')) return '👦';
+    if (r.includes('wife') || r.includes('husband') || r.includes('spouse')) return '💑';
+    if (r.includes('brother')) return '👨';
+    if (r.includes('sister')) return '👩';
+    if (r.includes('friend')) return '🤝';
+    if (r.includes('carer') || r.includes('nurse')) return '👨‍⚕️';
+    return '👤';
+  };
+
+  // Get unread count per contact
+  const getUnreadCount = (contact: any) => {
+    return pendingMessages.filter(m =>
+      m.senderName?.toLowerCase().includes(contact.name.toLowerCase()) ||
+      m.senderId === contact.id
+    ).length;
+  };
+
+  // ─── Thread View ─────────────────────────────
+  if (selectedContact) {
+    const contactPending = pendingMessages.filter(m =>
+      m.senderName?.toLowerCase().includes(selectedContact.name.toLowerCase()) ||
+      m.senderId === selectedContact.id
+    );
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={() => { setSelectedContact(null); setReplyingTo(null); }} style={{
+            padding: '8px 14px', borderRadius: 12, border: 'none', cursor: 'pointer',
+            background: isNight ? 'rgba(255,255,255,0.08)' : P.surfaceGlass, color: P.teal,
+            fontSize: 14, fontWeight: 600, fontFamily: fonts.body,
+          }}>← Back</button>
+          <span style={{ fontSize: 32 }}>{getEmoji(selectedContact.relation || selectedContact.relationship || '')}</span>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 600, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.heading }}>
+              {selectedContact.name || selectedContact.fullName}
+            </div>
+            <div style={{ fontSize: 13, color: P.textMuted }}>{selectedContact.relation || selectedContact.relationship}</div>
+          </div>
+        </div>
+
+        {/* Pending messages from this contact */}
+        {contactPending.length > 0 && (
+          <div style={{
+            padding: '12px 16px', borderRadius: 16,
+            background: isNight ? 'rgba(91,137,180,0.15)' : 'rgba(91,137,180,0.08)',
+            border: '1.5px solid ' + P.familyBlue,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: P.familyBlue, marginBottom: 8, fontFamily: fonts.heading }}>
+              💌 {contactPending.length} new message{contactPending.length !== 1 ? 's' : ''}
+            </div>
+            {contactPending.map((msg: any) => (
+              <div key={msg.id} style={{
+                padding: '12px', borderRadius: 12, marginBottom: 8,
+                background: isNight ? 'rgba(255,255,255,0.05)' : '#fff',
+              }}>
+                <p style={{ fontSize: 15, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.body, margin: '0 0 8px 0', lineHeight: 1.5 }}>
+                  {msg.content}
+                </p>
+                {msg.type === 'PHOTO' && msg.photoUrl && (
+                  <img src={msg.photoUrl} alt="" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 10, marginBottom: 8 }} />
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { markDelivered(msg.id); setReplyingTo(msg); }} style={{
+                    flex: 1, padding: '8px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: P.teal, color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: fonts.body,
+                  }}>💬 Reply</button>
+                  <button onClick={() => markDelivered(msg.id)} style={{
+                    padding: '8px 14px', borderRadius: 10, cursor: 'pointer',
+                    border: '1px solid ' + P.tealMist, background: 'transparent',
+                    color: P.textSoft, fontSize: 13, fontFamily: fonts.body,
+                  }}>✓ Read</button>
+                </div>
+                <div style={{ fontSize: 11, color: P.textMuted, marginTop: 6 }}>
+                  {new Date(msg.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Reply interface */}
+        {replyingTo && (
+          <div style={{
+            padding: '16px', borderRadius: 16,
+            background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)',
+            border: '1.5px solid ' + P.teal,
+          }}>
+            <div style={{ fontSize: 14, color: P.textSoft, fontFamily: fonts.body, marginBottom: 10 }}>
+              Replying to <strong style={{ color: P.teal }}>{selectedContact.name}</strong>
+            </div>
+            <button onClick={() => { openConversation('voice'); setReplyingTo(null); setSelectedContact(null); }} style={{
+              width: '100%', padding: '14px', borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: P.teal, color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: fonts.body,
+              marginBottom: 8,
+            }}>🎤 Talk to Warda — she'll send your reply</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="text" placeholder="Or type here..." value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') sendReply(replyText, selectedContact.name); }}
+                style={{
+                  flex: 1, padding: '12px 14px', borderRadius: 10, fontSize: 14,
+                  border: '1.5px solid ' + (isNight ? 'rgba(255,255,255,0.1)' : P.tealMist),
+                  background: isNight ? 'rgba(255,255,255,0.05)' : '#fff',
+                  color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.body, outline: 'none',
+                }} />
+              <button onClick={() => sendReply(replyText, selectedContact.name)} style={{
+                padding: '12px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: P.familyBlue, color: '#fff', fontSize: 14, fontWeight: 600, fontFamily: fonts.body,
+              }}>Send</button>
+            </div>
+            <button onClick={() => setReplyingTo(null)} style={{
+              marginTop: 6, padding: '6px', background: 'transparent', border: 'none',
+              cursor: 'pointer', color: P.textMuted, fontSize: 12, fontFamily: fonts.body,
+            }}>Cancel</button>
+          </div>
+        )}
+
+        {/* Previous messages */}
+        {!replyingTo && thread.length > 0 && (
+          <div style={{ marginTop: 4 }}>
+            <div style={{ fontSize: 13, color: P.textMuted, fontFamily: fonts.body, marginBottom: 8 }}>Previous messages</div>
+            {thread.slice(0, 10).map((msg: any) => (
+              <div key={msg.id} style={{
+                padding: '10px 14px', borderRadius: 12, marginBottom: 6,
+                background: msg.isFromWarda || msg.senderId === residentId
+                  ? (isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)')
+                  : (isNight ? 'rgba(255,255,255,0.05)' : P.surfaceGlass),
+                borderLeft: msg.isFromWarda || msg.senderId === residentId ? '3px solid ' + P.teal : '3px solid ' + P.familyBlue,
+              }}>
+                <div style={{ fontSize: 11, color: P.textMuted, marginBottom: 3 }}>
+                  {msg.senderName || (msg.isFromWarda ? 'You (via Warda)' : 'Family')} · {new Date(msg.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <p style={{ fontSize: 14, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.body, margin: 0 }}>{msg.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Quick reply button when not already replying */}
+        {!replyingTo && (
+          <button onClick={() => setReplyingTo({})} style={{
+            padding: '14px', borderRadius: 16, border: 'none', cursor: 'pointer', marginTop: 4,
+            background: P.teal, color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: fonts.body,
+          }}>💬 Send a message to {selectedContact.name}</button>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Contact List View ───────────────────────
+  const totalUnread = pendingMessages.length;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+      <div style={{ textAlign: 'center', marginBottom: 4 }}>
+        <h3 style={{ fontSize: 22, fontFamily: fonts.heading, color: P.teal, margin: '0 0 4px 0' }}>Family & Friends</h3>
+        {totalUnread > 0 && (
+          <p style={{ fontSize: 14, color: P.familyBlue, fontFamily: fonts.body, margin: 0 }}>
+            💌 {totalUnread} new message{totalUnread !== 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+
+      {contacts.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 40 }}>
+          <span style={{ fontSize: 48 }}>👨‍👩‍👧‍👦</span>
+          <p style={{ fontSize: 15, color: P.textSoft, fontFamily: fonts.body, marginTop: 12 }}>
+            Your family and friends will appear here once they're added by staff or through the Family App.
+          </p>
+        </div>
+      ) : (
+        contacts.map((contact: any) => {
+          const unread = getUnreadCount(contact);
+          return (
+            <button key={contact.id} onClick={() => openThread(contact)} style={{
+              display: 'flex', alignItems: 'center', gap: 16,
+              padding: '18px 22px', borderRadius: 20, width: '100%',
+              background: unread > 0
+                ? (isNight ? 'rgba(91,137,180,0.15)' : 'rgba(91,137,180,0.08)')
+                : (isNight ? 'rgba(255,255,255,0.05)' : P.surfaceGlass),
+              border: unread > 0
+                ? '2px solid ' + P.familyBlue
+                : '1.5px solid ' + (isNight ? 'rgba(255,255,255,0.06)' : P.tealMist),
+              cursor: 'pointer', textAlign: 'left', position: 'relative',
+            }}>
+              <span style={{ fontSize: 38 }}>{contact.avatar || getEmoji(contact.relation || contact.relationship || '')}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 18, fontWeight: 600, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.heading }}>
+                  {contact.name || contact.fullName}
+                  <span style={{ fontWeight: 400, fontSize: 14, color: P.textSoft, marginLeft: 8 }}>— {contact.relation || contact.relationship}</span>
+                </div>
+                {contact.lastMessage && (
+                  <div style={{ fontSize: 13, color: P.textMuted, marginTop: 2 }}>{contact.lastMessage}</div>
+                )}
+              </div>
+              {unread > 0 && (
+                <div style={{
+                  minWidth: 28, height: 28, borderRadius: 14,
+                  background: P.familyBlue, color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, fontWeight: 700,
+                }}>{unread}</div>
+              )}
+            </button>
+          );
+        })
+      )}
+
+      <div style={{
+        padding: '16px 22px', borderRadius: 16, marginTop: 8,
+        background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)',
+        textAlign: 'center', fontSize: 15, color: P.teal, fontFamily: fonts.body,
+      }}>
+        💬 Say "Tell Abid I love him" to send a message through Warda
+      </div>
+    </div>
+  );
+}
+
 // ─── Photos Screen Component ─────────────────────────────────
 function PhotosScreen({ residentId, isNight }: { residentId?: string; isNight: boolean }) {
   const [photos, setPhotos] = useState<any[]>([]);
@@ -826,7 +1132,7 @@ export default function App() {
     if (deviceStatus !== 'active' || !resident?.id) return;
     const checkMessages = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/messages/pending/${resident.id}`);
+        const res = await fetch(`${API_BASE}/api/family-comms/pending/${resident.id}`);
         const data = await res.json();
         if (data.success) setPendingFamilyMessages(data.count || 0);
       } catch {}
@@ -1419,37 +1725,7 @@ export default function App() {
           }}>
             {/* ─── FAMILY ─── */}
             {activeFeature === 'family' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%' }}>
-                {[
-                  { name: 'Abid', relation: 'Son', detail: 'Lives in Newmachar · Visits every weekend', emoji: '👨' },
-                  { name: 'Fatima', relation: 'Daughter', detail: 'Lives in Casablanca · Calls every Thursday', emoji: '👩' },
-                  { name: 'Yasmine', relation: 'Granddaughter', detail: "Abid's daughter · Age 8", emoji: '👧' },
-                  { name: 'Omar', relation: 'Grandson', detail: "Abid's son · Age 5", emoji: '👦' },
-                  { name: 'Leila', relation: 'Granddaughter', detail: "Fatima's daughter · Age 12", emoji: '👧' },
-                ].map((person, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 16,
-                    padding: '18px 22px', borderRadius: 20,
-                    background: isNight ? 'rgba(255,255,255,0.05)' : P.surfaceGlass,
-                    border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.06)' : P.tealMist}`,
-                  }}>
-                    <span style={{ fontSize: 38 }}>{person.emoji}</span>
-                    <div>
-                      <div style={{ fontSize: 18, fontWeight: 600, color: isNight ? '#E8E0D8' : P.text, fontFamily: fonts.heading }}>
-                        {person.name} <span style={{ fontWeight: 400, fontSize: 14, color: P.textSoft }}>— {person.relation}</span>
-                      </div>
-                      <div style={{ fontSize: 14, color: P.textMuted, marginTop: 2 }}>{person.detail}</div>
-                    </div>
-                  </div>
-                ))}
-                <div style={{
-                  padding: '16px 22px', borderRadius: 16, marginTop: 8,
-                  background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)',
-                  textAlign: 'center', fontSize: 15, color: P.teal, fontFamily: fonts.body,
-                }}>
-                  💬 Say "Tell Abid I love him" to send a message through Warda
-                </div>
-              </div>
+              <FamilyScreen residentId={resident?.id} isNight={isNight} openConversation={openConversation} />
             )}
 
             {/* ─── MUSIC ─── */}
