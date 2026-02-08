@@ -60,17 +60,26 @@ async function adminAuth(req, res, next) {
     const token = authHeader.split(' ')[1];
 
     let decoded;
+    let adminUser;
     try {
       decoded = await verifyToken(token);
+      adminUser = await prisma.adminUser.findUnique({
+        where: { cognitoSub: decoded.sub },
+        include: { careHome: true }
+      });
     } catch (err) {
-      console.error('Token verification failed:', err.message);
-      return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+      // P1: Fallback to plain JWT for GP users
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET || 'warda-gp-secret-2026');
+        adminUser = await prisma.adminUser.findUnique({
+          where: { id: decoded.id },
+          include: { careHome: true }
+        });
+      } catch (jwtErr) {
+        console.error('Token verification failed:', err.message);
+        return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+      }
     }
-
-    const adminUser = await prisma.adminUser.findUnique({
-      where: { cognitoSub: decoded.sub },
-      include: { careHome: true }
-    });
 
     if (!adminUser) {
       return res.status(403).json({ success: false, error: 'Admin account not found' });

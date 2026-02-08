@@ -142,6 +142,7 @@ app.use("/api/mood", moodRoutes);
 app.use("/api/reminiscence", reminiscenceRoutes);
 app.use("/api/purpose", purposeRoutes);
 app.use("/api/gp", gpRoutes);
+app.use("/api/admin/gp", gpRoutes);
 app.use("/api/family-comms", familyCommsRoutes);
 
 // Root endpoint
