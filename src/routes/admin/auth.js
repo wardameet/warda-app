@@ -62,7 +62,7 @@ router.post('/login', async (req, res) => {
           if (match) {
             const token = jwt.sign({ id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name }, process.env.JWT_SECRET || 'warda-gp-secret-2026', { expiresIn: '8h' });
             await prisma.adminUser.update({ where: { id: dbUser.id }, data: { lastLoginAt: new Date() } });
-            return res.json({ success: true, token, user: { id: dbUser.id, email: dbUser.email, name: dbUser.name, role: dbUser.role, careHome: dbUser.careHome } });
+            return res.json({ success: true, tokens: { accessToken: token, refreshToken: token }, user: { id: dbUser.id, email: dbUser.email, name: dbUser.name, role: dbUser.role, careHome: dbUser.careHome } });
           }
         }
         return res.status(401).json({ success: false, error: 'Invalid email or password' });
