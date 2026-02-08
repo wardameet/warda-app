@@ -7,7 +7,7 @@
 const { PrismaClient } = require('@prisma/client');
 
 // P1 Services
-const { generateBedtimeMessage, generateMorningMessage, getTimePeriod } = require("./nightMode");
+const { generateBedtimeMessage, generateMorningMessage } = require("./nightMode");
 const { generateReminiscencePrompt } = require("./reminiscence");
 const prisma = new PrismaClient();
 
