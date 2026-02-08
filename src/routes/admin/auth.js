@@ -52,10 +52,19 @@ router.post('/login', async (req, res) => {
     try {
       authResult = await cognitoClient.send(authCommand);
     } catch (err) {
-      if (err.name === 'NotAuthorizedException') {
-        return res.status(401).json({ success: false, error: 'Invalid email or password' });
-      }
-      if (err.name === 'UserNotFoundException') {
+      if (err.name === 'UserNotFoundException' || err.name === 'NotAuthorizedException') {
+        // P1: Fallback to database auth for GP users not in Cognito
+        const bcrypt = require('bcryptjs');
+        const jwt = require('jsonwebtoken');
+        const dbUser = await prisma.adminUser.findFirst({ where: { email: email.toLowerCase() }, include: { careHome: true } });
+        if (dbUser && dbUser.tempPassword) {
+          const match = await bcrypt.compare(password, dbUser.tempPassword);
+          if (match) {
+            const token = jwt.sign({ id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name }, process.env.JWT_SECRET || 'warda-gp-secret-2026', { expiresIn: '8h' });
+            await prisma.adminUser.update({ where: { id: dbUser.id }, data: { lastLoginAt: new Date() } });
+            return res.json({ success: true, token, user: { id: dbUser.id, email: dbUser.email, name: dbUser.name, role: dbUser.role, careHome: dbUser.careHome } });
+          }
+        }
         return res.status(401).json({ success: false, error: 'Invalid email or password' });
       }
       if (err.name === 'UserNotConfirmedException') {
