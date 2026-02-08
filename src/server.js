@@ -58,6 +58,13 @@ const emailRoutes = require("./routes/admin/emails");
 const deviceCodesRoutes = require('./routes/admin/deviceCodes');
 const tabletAuthRoutes = require('./routes/tabletAuth');
 
+// P1 Routes
+const sleepRoutes = require("./routes/sleep");
+const moodRoutes = require("./routes/mood");
+const reminiscenceRoutes = require("./routes/reminiscence");
+const purposeRoutes = require("./routes/purpose");
+const gpRoutes = require("./routes/gp");
+
 // Import services
 const { initializeRedis } = require('./services/redis');
 const { initializeSocket } = require('./services/socket');
@@ -128,6 +135,13 @@ app.use('/api/admin/staff', adminStaffRoutes);
 app.use('/api/admin', adminFamilyRoutes);
 app.use("/api/transcribe", transcribeRoutes);
 app.use("/api/orientation", orientationRoutes);
+
+// P1 API Routes
+app.use("/api/sleep", sleepRoutes);
+app.use("/api/mood", moodRoutes);
+app.use("/api/reminiscence", reminiscenceRoutes);
+app.use("/api/purpose", purposeRoutes);
+app.use("/api/gp", gpRoutes);
 app.use("/api/family-comms", familyCommsRoutes);
 
 // Root endpoint

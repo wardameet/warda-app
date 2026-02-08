@@ -9,6 +9,11 @@ const { PrismaClient } = require('@prisma/client');
 const { getWardaResponse, getResidentProfile, buildPersonalisedPrompt } = require('../services/claude');
 const { saveConversation, getConversationHistory } = require('../services/dynamodb');
 
+
+// P1 Services
+const { logConversationHealth } = require("../services/healthLogger");
+const { storeLifeStory } = require("../services/reminiscence");
+const { isNightTime, logSleepInteraction } = require("../services/nightMode");
 const prisma = new PrismaClient();
 
 // ─── Family message intent detection ───
@@ -91,6 +96,21 @@ router.post('/message', async (req, res) => {
         console.error('Failed to create alert:', alertErr);
       }
     }
+
+    // P1: Log mood score + symptoms from every conversation
+    try {
+      const healthData = await logConversationHealth(userId, message, wardaResponse.message, wardaResponse.mood);
+      if (healthData.symptoms.length > 0) console.log("P1: " + healthData.symptoms.length + " symptom(s) logged");
+    } catch (healthErr) { console.error("Health logging error:", healthErr); }
+
+    // P1: Auto-capture life stories
+    try { await storeLifeStory(userId, message || "", wardaResponse.message || wardaResponse.text || ""); } catch (storyErr) {}
+
+    // P1: Log night-time interactions
+    try {
+      const hour = new Date().getHours();
+      if (isNightTime(hour)) await logSleepInteraction(userId, "night_waking", { hour, source: "conversation" });
+    } catch (sleepErr) {}
 
     // ─── FAMILY MESSAGE DETECTION ───
     let familyMessageSent = null;
