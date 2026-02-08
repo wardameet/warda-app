@@ -125,10 +125,15 @@ router.post('/message', async (req, res) => {
             await prisma.message.create({
               data: {
                 content: cleanMessage,
-                sender: userId,
-                type: 'text',
+                sender: residentName || 'Resident',
+                senderId: userId,
+                recipientId: contact.id,
                 userId: userId,
-                isFromWarda: false
+                type: 'text',
+                senderType: 'RESIDENT',
+                senderName: residentName || 'Resident',
+                isFromWarda: true,
+                isDelivered: true
               }
             });
           } catch (dbErr) {

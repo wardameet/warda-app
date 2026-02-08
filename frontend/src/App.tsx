@@ -629,14 +629,11 @@ function FamilyScreen({ residentId, isNight, openConversation }: { residentId?: 
     setSelectedContact(contact);
     setLoadingThread(true);
     try {
-      const res = await fetch(`${API_BASE}/api/family-comms/thread/${residentId}?limit=20`);
+      const res = await fetch(API_BASE + '/api/family-comms/thread/' + residentId + '?limit=20&contact=' + encodeURIComponent(contact.name || contact.fullName || ''));
+
       const data = await res.json();
       if (data.success) {
-        // Filter messages for this contact
-        const contactMessages = data.messages.filter((m: any) =>
-          m.senderId === contact.id || m.senderName?.toLowerCase().includes(contact.name.toLowerCase())
-        );
-        setThread(contactMessages.length > 0 ? contactMessages : data.messages);
+        setThread(data.messages || []);
       }
     } catch {}
     setLoadingThread(false);
@@ -1037,6 +1034,8 @@ export default function App() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [weather, setWeather] = useState({ temp: '—°C', icon: '☁️', desc: '' });
   const [pendingFamilyMessages, setPendingFamilyMessages] = useState(0);
+  const [familyToast, setFamilyToast] = useState<{from: string; preview: string} | null>(null);
+  const prevPendingRef = useRef(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -1127,20 +1126,31 @@ export default function App() {
     return () => clearInterval(interval);
   }, [deviceStatus, checkDeviceStatus]);
 
-  // ─── Check for pending family messages ────────────────────────
   useEffect(() => {
     if (deviceStatus !== 'active' || !resident?.id) return;
     const checkMessages = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/family-comms/pending/${resident.id}`);
+        const res = await fetch(API_BASE + '/api/family-comms/pending/' + resident.id);
         const data = await res.json();
-        if (data.success) setPendingFamilyMessages(data.count || 0);
+        if (data.success) {
+          const newCount = data.count || 0;
+          if (newCount > prevPendingRef.current && data.messages?.length > 0) {
+            const latest = data.messages[data.messages.length - 1];
+            const from = latest.senderName || 'Your family';
+            const preview = latest.content?.substring(0, 80) || '';
+            setFamilyToast({ from, preview });
+            speakText('You have a new message from ' + from + '. ' + preview);
+            setTimeout(() => setFamilyToast(null), 12000);
+          }
+          prevPendingRef.current = newCount;
+          setPendingFamilyMessages(newCount);
+        }
       } catch {}
     };
     checkMessages();
-    const interval = setInterval(checkMessages, 60000);
+    const interval = setInterval(checkMessages, 30000);
     return () => clearInterval(interval);
-  }, [deviceStatus, resident?.id]);
+  }, [deviceStatus, resident?.id]); // eslint-disable-line
 
   // ─── Fetch Weather ──────────────────────────────────────────────
   useEffect(() => {
@@ -1525,6 +1535,32 @@ export default function App() {
       )}
 
       {/* ═══ AMBIENT MODE ═══════════════════════════════════════ */}
+      {/* ─── Family Message Toast ─── */}
+      {familyToast && (
+        <div onClick={() => { setFamilyToast(null); setMode('feature'); setActiveFeature('family'); }} style={{
+          position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 999, maxWidth: 500, width: '90%',
+          padding: '18px 24px', borderRadius: 20,
+          background: 'linear-gradient(135deg, rgba(91,137,180,0.95), rgba(61,139,122,0.95))',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          cursor: 'pointer', animation: 'slideDown 0.4s ease-out',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span style={{ fontSize: 36 }}>💌</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', fontFamily: fonts.heading }}>
+                New message from {familyToast.from}
+              </div>
+              <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', fontFamily: fonts.body, marginTop: 4, lineHeight: 1.4 }}>
+                "{familyToast.preview}"
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6 }}>Tap to read</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {mode === 'ambient' && (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',

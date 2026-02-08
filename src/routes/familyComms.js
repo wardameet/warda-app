@@ -240,13 +240,15 @@ router.post('/resident-reply', async (req, res) => {
     // Store the reply
     const reply = await prisma.message.create({
       data: {
+        sender: residentName,
         senderId: residentId,
+        userId: residentId,
         recipientId: recipientId || 'family',
         content,
         type: 'TEXT',
         senderType: 'RESIDENT',
         senderName: residentName,
-        isDelivered: false
+        isDelivered: true
       }
     });
 
@@ -317,10 +319,13 @@ router.get('/pending/:residentId', async (req, res) => {
 router.get('/thread/:residentId', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
+    const contactName = req.query.contact || null;
     
     const messages = await prisma.message.findMany({
       where: {
         OR: [
+          { recipientId: req.params.residentId, senderType: 'FAMILY' },
+          { senderId: req.params.residentId, senderType: 'RESIDENT' },
           { recipientId: req.params.residentId },
           { senderId: req.params.residentId }
         ]
@@ -328,8 +333,16 @@ router.get('/thread/:residentId', async (req, res) => {
       orderBy: { createdAt: 'desc' },
       take: limit
     });
-
-    res.json({ success: true, messages, count: messages.length });
+    let filtered = messages;
+    if (contactName) {
+      const cn = contactName.toLowerCase();
+      filtered = messages.filter(m =>
+        (m.senderName && m.senderName.toLowerCase().includes(cn)) ||
+        (m.senderId === req.params.residentId)
+      );
+      if (filtered.length === 0) filtered = messages;
+    }
+    res.json({ success: true, messages: filtered, count: filtered.length });
   } catch (error) {
     console.error('Get thread error:', error);
     res.status(500).json({ success: false, error: 'Failed to get thread' });
