@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSocket } from './useSocket';
+import MessageOverlay from './MessageOverlay';
+import PhotoOverlay from './PhotoOverlay';
+import { IncomingCallOverlay } from './VideoCallComponents';
 
 // ═══════════════════════════════════════════════════════════════════════
 // WARDA TABLET APP V2 — PRODUCTION
@@ -1037,6 +1041,30 @@ export default function App() {
   const [familyToast, setFamilyToast] = useState<{from: string; preview: string} | null>(null);
   const prevPendingRef = useRef(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  // ─── Real-time Socket.IO ──────────────────────────────────────
+  const socket = useSocket(
+    resident?.id || '',
+    resident?.preferredName || resident?.firstName || 'Friend',
+    resident?.careHomeId || ''
+  );
+  const [showMessageOverlay, setShowMessageOverlay] = useState(false);
+  const [showPhotoOverlay, setShowPhotoOverlay] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<any>(null);
+
+  // Handle real-time incoming message
+  useEffect(() => {
+    if (socket.incomingMessage && deviceStatus === 'active') {
+      setShowMessageOverlay(true);
+    }
+  }, [socket.incomingMessage, deviceStatus]);
+
+  // Handle real-time incoming photo
+  useEffect(() => {
+    if (socket.incomingPhoto && deviceStatus === 'active') {
+      setShowPhotoOverlay(true);
+    }
+  }, [socket.incomingPhoto, deviceStatus]);
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   // ─── Device Status Check ──────────────────────────────────────
@@ -1481,6 +1509,61 @@ export default function App() {
       minHeight: '100vh', fontFamily: fonts.body,
       position: 'relative', overflow: 'hidden', userSelect: 'none',
     }}>
+      {/* ─── Real-time Overlays ─── */}
+      {showMessageOverlay && socket.incomingMessage && (
+        <MessageOverlay
+          message={socket.incomingMessage}
+          residentName={resident?.preferredName || resident?.firstName || 'Friend'}
+          onDismiss={() => { setShowMessageOverlay(false); socket.dismissMessage(); }}
+          onReply={(senderId: string, senderName: string) => {
+            setShowMessageOverlay(false); socket.dismissMessage();
+            setMode('conversation'); setConversationMode('voice');
+          }}
+          queueCount={socket.messageQueue?.length || 0}
+        />
+      )}
+      {showPhotoOverlay && socket.incomingPhoto && (
+        <PhotoOverlay
+          photo={{
+            id: socket.incomingPhoto.id,
+            photoUrl: socket.incomingPhoto.photoUrl,
+            caption: socket.incomingPhoto.caption || '',
+            senderName: socket.incomingPhoto.senderName,
+            timestamp: socket.incomingPhoto.timestamp,
+          }}
+          onDismiss={() => { setShowPhotoOverlay(false); socket.dismissPhoto(); }}
+          onViewGallery={() => { setShowPhotoOverlay(false); socket.dismissPhoto(); setMode('feature'); setActiveFeature('family'); }}
+          onReply={(msg: string) => {
+            setShowPhotoOverlay(false); socket.dismissPhoto();
+            setMode('conversation'); setConversationMode('voice');
+          }}
+        />
+      )}
+      {incomingCall && (
+        <IncomingCallOverlay
+          callerName={incomingCall.callerName}
+          callerType={incomingCall.callerType}
+          onAnswer={async () => {
+            try {
+              const res = await fetch(API_BASE + '/api/video/answer', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ residentId: resident?.id })
+              });
+              const data = await res.json();
+              if (data.success) { /* Chime SDK video would start here */ }
+            } catch (e) {}
+            setIncomingCall(null);
+          }}
+          onDecline={() => {
+            fetch(API_BASE + '/api/video/end', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ residentId: resident?.id })
+            }).catch(() => {});
+            setIncomingCall(null);
+          }}
+        />
+      )}
+
       {/* Subtle texture */}
       {!isNight && (
         <div style={{
