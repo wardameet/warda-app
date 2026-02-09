@@ -263,12 +263,32 @@ async function getWardaResponse(userMessage, conversationHistory, context) {
       if (turn.userMessage) messages.push({ role: 'user', content: turn.userMessage });
       if (turn.wardaResponse) messages.push({ role: 'assistant', content: turn.wardaResponse });
     }
-    messages.push({ role: 'user', content: userMessage });
+    // Translate incoming message to English if needed
+    let processedMessage = userMessage;
+    const incomingLang = profile?.languagePreference || 'English';
+    if (incomingLang !== 'English') {
+      try {
+        const inTranslation = await translateToEnglish(userMessage, incomingLang);
+        processedMessage = inTranslation.english;
+      } catch (tErr) { console.warn('Input translation fallback:', tErr.message); processedMessage = userMessage; }
+    }
+    messages.push({ role: 'user', content: processedMessage });
     const response = await anthropic.messages.create({ model: 'claude-sonnet-4-20250514', max_tokens: maxTokens, system: systemPrompt, messages: messages });
     const responseText = response.content[0].text;
     const mood = analyzeMood(userMessage, responseText, profile);
     const suggestions = generateSuggestions(userMessage, responseText, profile);
-    return { text: responseText, mood, suggestions, profileUsed: !!profile };
+    // Translate response if resident has a non-English language preference
+    const langPref = profile?.languagePreference || 'English';
+    let finalText = responseText;
+    let translationInfo = null;
+    if (langPref !== 'English') {
+      try {
+        const translated = await translateWardaResponse(responseText, profile);
+        finalText = translated.translated;
+        translationInfo = { original: responseText, language: translated.language, direction: translated.direction, nativeName: translated.nativeName };
+      } catch (tErr) { console.warn('Translation fallback to English:', tErr.message); }
+    }
+    return { text: finalText, originalText: responseText, mood, suggestions, profileUsed: !!profile, language: langPref, translation: translationInfo };
   } catch (error) { console.error('Claude API error:', error); throw error; }
 }
 

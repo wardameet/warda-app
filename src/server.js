@@ -64,6 +64,7 @@ const moodRoutes = require("./routes/mood");
 const reminiscenceRoutes = require("./routes/reminiscence");
 const purposeRoutes = require("./routes/purpose");
 const gpRoutes = require("./routes/gp");
+const translateRoutes = require("./routes/translate");
 
 // Import services
 const { initializeRedis } = require('./services/redis');
@@ -118,6 +119,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/activities', activitiesRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/translate', translateRoutes);
 app.use('/api/setup', setupGuideRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/b2c', b2cSignupRoutes);
