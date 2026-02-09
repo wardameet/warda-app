@@ -31,18 +31,22 @@ async function uploadPhoto({ buffer, originalName, careHomeId, residentId, uploa
   const thumbKey = `${basePath}/thumbs/${timestamp}_${photoId}_thumb.${ext}`;
 
   try {
-    // Process full image (max 1200px width, preserve aspect ratio)
-    const fullImage = await sharp(buffer)
-      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 85 })
-      .toBuffer();
-
-    // Create thumbnail (300px for gallery view)
-    const thumbImage = await sharp(buffer)
-      .resize(300, 300, { fit: 'cover' })
-      .jpeg({ quality: 75 })
-      .toBuffer();
-
+    // Process images with Sharp, fallback to raw if it fails
+    let fullImage, thumbImage;
+    try {
+      fullImage = await sharp(buffer)
+        .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      thumbImage = await sharp(buffer)
+        .resize(300, 300, { fit: "cover" })
+        .jpeg({ quality: 75 })
+        .toBuffer();
+    } catch (sharpErr) {
+      console.log("Sharp processing failed, uploading raw:", sharpErr.message);
+      fullImage = buffer;
+      thumbImage = buffer;
+    }
     // Upload full image
     await s3.send(new PutObjectCommand({
       Bucket: MEDIA_BUCKET,
@@ -190,6 +194,7 @@ async function uploadVoiceMessage({ buffer, careHomeId, residentId, senderId, co
 }
 
 module.exports = {
+  s3Client: s3,
   uploadPhoto,
   getSignedPhotoUrl,
   getUploadSignedUrl,

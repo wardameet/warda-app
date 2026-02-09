@@ -118,8 +118,10 @@ router.post('/send-photo', upload.single('photo'), async (req, res) => {
     // Store in DB
     const message = await prisma.message.create({
       data: {
+        sender: senderName || 'family',
         senderId: senderId || 'family',
         recipientId: residentId,
+        userId: residentId,
         content: caption || `${senderName || 'Your family'} sent you a lovely photo!`,
         type: 'PHOTO',
         senderType: 'FAMILY',
@@ -191,8 +193,10 @@ router.post('/send-voice', upload.single('voice'), async (req, res) => {
     // Store in DB
     const message = await prisma.message.create({
       data: {
+        sender: senderName || 'family',
         senderId: senderId || 'family',
         recipientId: residentId,
+        userId: residentId,
         content: `${senderName || 'Your family'} sent you a voice message!`,
         type: 'VOICE',
         senderType: 'FAMILY',

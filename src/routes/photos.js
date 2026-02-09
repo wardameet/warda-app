@@ -219,3 +219,33 @@ router.get('/signed-upload-url', async (req, res) => {
 });
 
 module.exports = router;
+
+// DELETE /api/photos/:photoId/delete — Delete a photo
+router.delete('/:photoId/delete', async (req, res) => {
+  try {
+    const { photoId } = req.params;
+    const photo = await prisma.message.findUnique({ where: { id: photoId } });
+    if (!photo) return res.status(404).json({ success: false, error: 'Photo not found' });
+
+    // Delete from S3 if keys exist
+    const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+    const { s3, MEDIA_BUCKET } = (() => {
+      const s3Svc = require('../services/s3');
+      return { s3: s3Svc.s3Client || null, MEDIA_BUCKET: process.env.S3_MEDIA_BUCKET || 'warda-media-bucket' };
+    })();
+
+    if (photo.mediaUrl && s3) {
+      try { await s3.send(new DeleteObjectCommand({ Bucket: MEDIA_BUCKET, Key: photo.mediaUrl })); } catch (e) { console.log('S3 delete full:', e.message); }
+    }
+    if (photo.thumbnailUrl && s3) {
+      try { await s3.send(new DeleteObjectCommand({ Bucket: MEDIA_BUCKET, Key: photo.thumbnailUrl })); } catch (e) { console.log('S3 delete thumb:', e.message); }
+    }
+
+    // Delete from DB
+    await prisma.message.delete({ where: { id: photoId } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete photo error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete photo' });
+  }
+});
