@@ -106,7 +106,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', requireRole('SUPER_ADMIN', 'MANAGER'), async (req, res) => {
   try {
     const {
-      firstName, lastName, preferredName, dateOfBirth,
+      firstName, lastName, preferredName, dateOfBirth, languagePreference,
       roomNumber, pin, careHomeId, accountType
     } = req.body;
 
@@ -140,6 +140,7 @@ router.post('/', requireRole('SUPER_ADMIN', 'MANAGER'), async (req, res) => {
       data: {
         residentId: resident.id,
         questionnaireStep: 1,
+        languagePreference: languagePreference || "English",
         questionnaireComplete: false
       }
     });
@@ -169,7 +170,7 @@ router.put('/:id', async (req, res) => {
     }
 
     const {
-      firstName, lastName, preferredName, dateOfBirth,
+      firstName, lastName, preferredName, dateOfBirth, languagePreference,
       roomNumber, pin, status, photoUrl, moveInDate
     } = req.body;
 
