@@ -32,6 +32,7 @@ const P = {
   teal: '#3D8B7A', tealDeep: '#2D6B5E', tealLight: '#E6F2EF',
   tealMist: '#D0E8E2', tealGlow: 'rgba(61,139,122,0.12)',
   text: '#2C2824', textSoft: '#6B635B', textMuted: '#9B948C', textLight: '#C4BDB5',
+  recipeOrange: '#E07A3A', voicePink: '#D46B9D',
   helpRed: '#D45B5B', helpRedBg: '#FEF2F2', helpRedBorder: '#FECACA',
   familyBlue: '#5B89B4', musicPurple: '#8B6BB5', photoAmber: '#B89B5B',
   faithGold: '#C4A265', daySlate: '#6B8B8B',
@@ -50,6 +51,8 @@ const ALL_FEATURES = [
   { id: 'photos', label: 'Photos', icon: '📷',    color: P.photoAmber },
   { id: 'faith',  label: 'My Faith', icon: '🙏',  color: P.faithGold },
   { id: 'myday',  label: 'My Day',   icon: '📅',  color: P.daySlate },
+  { id: 'recipes', label: 'Recipes', icon: '🍳', color: P.recipeOrange },
+  { id: 'voicemsg', label: 'Send Love', icon: '💌', color: P.voicePink },
 ];
 
 
@@ -1020,6 +1023,223 @@ function PhotosScreen({ residentId, isNight }: { residentId?: string; isNight: b
   );
 }
 
+
+// ─── Recipe Screen ──────────────────────────────────────────
+function RecipeScreen({ residentId, isNight, openConversation, residentName }: { residentId?: string; isNight: boolean; openConversation: (m: 'voice' | 'type') => void; residentName: string }) {
+  const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
+  const [recording, setRecording] = useState(false);
+
+  const recipes = [
+    { id: 1, name: 'Msemen (Moroccan Flatbread)', emoji: '🫓', origin: 'Morocco', desc: 'Traditional flaky flatbread — a family breakfast staple', difficulty: 'Medium', time: '45 min',
+      ingredients: ['2 cups semolina', '1 cup flour', 'Warm water', 'Salt', 'Butter or oil for folding'],
+      steps: ['Mix semolina, flour and salt', 'Add warm water gradually to form soft dough', 'Rest for 20 minutes', 'Divide into balls, flatten and fold with butter', 'Cook on griddle until golden on both sides'] },
+    { id: 2, name: 'Harira (Hearty Soup)', emoji: '🍲', origin: 'Morocco', desc: 'Rich tomato-lentil soup — comfort in a bowl', difficulty: 'Easy', time: '1 hour',
+      ingredients: ['Lentils', 'Chickpeas', 'Tomatoes', 'Onion', 'Celery', 'Fresh coriander', 'Vermicelli', 'Spices (cumin, turmeric, ginger)'],
+      steps: ['Soak chickpeas overnight', 'Cook onion and celery in olive oil', 'Add tomatoes, lentils, chickpeas and spices', 'Simmer for 45 minutes', 'Add vermicelli and fresh herbs', 'Serve with lemon and dates'] },
+    { id: 3, name: 'Scottish Shortbread', emoji: '🍪', origin: 'Scotland', desc: 'Buttery, crumbly — perfect with afternoon tea', difficulty: 'Easy', time: '30 min',
+      ingredients: ['250g butter', '125g caster sugar', '375g plain flour', 'Pinch of salt'],
+      steps: ['Cream butter and sugar together', 'Sift in flour and salt', 'Press into a greased tin', 'Prick with a fork', 'Bake at 160°C for 20-25 minutes', 'Cut while warm, cool in tin'] },
+    { id: 4, name: 'Baghrir (Thousand Hole Pancakes)', emoji: '🥞', origin: 'Morocco', desc: 'Spongy semolina pancakes drizzled with honey butter', difficulty: 'Easy', time: '25 min',
+      ingredients: ['1 cup fine semolina', '½ cup flour', '1 tsp yeast', '1 tsp baking powder', 'Warm water', 'Honey and butter for serving'],
+      steps: ['Blend all dry ingredients with water until smooth', 'Let batter rest 15 minutes until bubbly', 'Cook on one side only until holes form', 'Serve warm with melted honey-butter'] },
+    { id: 5, name: 'Tablet (Scottish Fudge)', emoji: '🍬', origin: 'Scotland', desc: 'Sweet crumbly fudge — a Scottish tradition', difficulty: 'Medium', time: '40 min',
+      ingredients: ['500g sugar', '125g butter', '200ml condensed milk', '100ml milk', 'Vanilla extract'],
+      steps: ['Melt butter in a large heavy pan', 'Add sugar and both milks', 'Stir continuously on medium heat', 'Boil until soft ball stage (about 20 mins)', 'Beat until thick and grainy', 'Pour into buttered tin and cut when cool'] },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+      {!selectedRecipe ? (
+        <>
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <div style={{ fontSize: 42 }}>👩‍🍳</div>
+            <h3 style={{ fontSize: 20, fontFamily: 'Fraunces, serif', color: '#3D8B7A', margin: '8px 0' }}>{residentName}'s Recipe Collection</h3>
+            <p style={{ fontSize: 14, color: '#6B635B' }}>Recipes from Morocco & Scotland — family favourites to share</p>
+          </div>
+          {recipes.map(r => (
+            <button key={r.id} onClick={() => setSelectedRecipe(r)} style={{
+              display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderRadius: 18, width: '100%',
+              background: isNight ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.82)', border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.06)' : '#D0E8E2'}`,
+              cursor: 'pointer', textAlign: 'left' as const,
+            }}>
+              <span style={{ fontSize: 36 }}>{r.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 600, color: isNight ? '#E8E0D8' : '#2C2824', fontFamily: 'Fraunces, serif' }}>{r.name}</div>
+                <div style={{ fontSize: 13, color: '#9B948C', marginTop: 2 }}>{r.desc}</div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, background: '#E6F2EF', color: '#3D8B7A', padding: '2px 8px', borderRadius: 8 }}>{r.origin}</span>
+                  <span style={{ fontSize: 11, background: '#FEF3E2', color: '#E07A3A', padding: '2px 8px', borderRadius: 8 }}>{r.difficulty}</span>
+                  <span style={{ fontSize: 11, background: '#F1F5F9', color: '#64748b', padding: '2px 8px', borderRadius: 8 }}>⏱ {r.time}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+          <div style={{ padding: '14px 20px', borderRadius: 14, background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)', textAlign: 'center', fontSize: 14, color: '#3D8B7A' }}>
+            🍳 Say "Warda, help me with a recipe" to cook together
+          </div>
+        </>
+      ) : (
+        <div>
+          <button onClick={() => setSelectedRecipe(null)} style={{ background: 'none', border: 'none', fontSize: 15, color: '#3D8B7A', cursor: 'pointer', fontWeight: 600, marginBottom: 12 }}>← Back to recipes</button>
+          <div style={{ padding: '20px', borderRadius: 20, background: isNight ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.82)', border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.06)' : '#D0E8E2'}` }}>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 48 }}>{selectedRecipe.emoji}</span>
+              <h3 style={{ fontSize: 20, fontFamily: 'Fraunces, serif', color: '#3D8B7A', margin: '8px 0' }}>{selectedRecipe.name}</h3>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <span style={{ fontSize: 12, background: '#E6F2EF', color: '#3D8B7A', padding: '3px 10px', borderRadius: 10 }}>{selectedRecipe.origin}</span>
+                <span style={{ fontSize: 12, background: '#FEF3E2', color: '#E07A3A', padding: '3px 10px', borderRadius: 10 }}>{selectedRecipe.difficulty} · {selectedRecipe.time}</span>
+              </div>
+            </div>
+            <h4 style={{ fontSize: 15, fontWeight: 700, color: isNight ? '#E8E0D8' : '#2C2824', margin: '16px 0 8px' }}>Ingredients</h4>
+            {selectedRecipe.ingredients.map((ing: string, i: number) => (
+              <div key={i} style={{ fontSize: 14, color: isNight ? '#E8E0D8' : '#2C2824', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#3D8B7A' }}>•</span> {ing}
+              </div>
+            ))}
+            <h4 style={{ fontSize: 15, fontWeight: 700, color: isNight ? '#E8E0D8' : '#2C2824', margin: '16px 0 8px' }}>Steps</h4>
+            {selectedRecipe.steps.map((step: string, i: number) => (
+              <div key={i} style={{ fontSize: 14, color: isNight ? '#E8E0D8' : '#2C2824', padding: '6px 0', display: 'flex', gap: 10 }}>
+                <span style={{ background: '#3D8B7A', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span>
+                <span>{step}</span>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => openConversation('voice')} style={{
+            width: '100%', marginTop: 16, padding: '16px', borderRadius: 16,
+            background: 'linear-gradient(135deg, #3D8B7A, #2D6B5E)', border: 'none', color: '#fff',
+            fontSize: 16, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>🎤 Cook this with Warda</button>
+          <button onClick={() => {
+            const msg = `I'd like to share ${residentName}'s recipe for ${selectedRecipe.name} with the family`;
+            fetch((window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://api.meetwarda.com') + '/api/family-comms/send-message', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ residentId, content: `${residentName}'s Recipe: ${selectedRecipe.name}\n\nIngredients: ${selectedRecipe.ingredients.join(', ')}\n\nSteps:\n${selectedRecipe.steps.map((s: string, i: number) => `${i+1}. ${s}`).join('\n')}`, senderName: residentName, sender: 'resident', type: 'recipe' })
+            }).then(() => alert('Recipe shared with family! 💌')).catch(() => {});
+          }} style={{
+            width: '100%', marginTop: 8, padding: '14px', borderRadius: 16,
+            background: isNight ? 'rgba(255,255,255,0.08)' : '#F1F5F9', border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.1)' : '#D0E8E2'}`,
+            fontSize: 15, fontWeight: 600, cursor: 'pointer', color: '#3D8B7A',
+          }}>💌 Share this recipe with family</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Voice Message Screen (Send Love) ───────────────────────
+function VoiceMessageScreen({ residentId, isNight, openConversation, residentName }: { residentId?: string; isNight: boolean; openConversation: (m: 'voice' | 'type') => void; residentName: string }) {
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [selectedContact, setSelectedContact] = useState<any>(null);
+  const [messageText, setMessageText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://api.meetwarda.com';
+
+  useEffect(() => {
+    if (!residentId) return;
+    fetch(`${API_BASE}/api/family-comms/contacts/${residentId}`)
+      .then(r => r.json()).then(d => setContacts(d.contacts || [])).catch(() => {});
+  }, [residentId]);
+
+  const sendMessage = async () => {
+    if (!selectedContact || !messageText.trim()) return;
+    setSending(true);
+    try {
+      await fetch(`${API_BASE}/api/family-comms/send-message`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId, content: messageText, senderName: residentName, sender: 'resident', recipientName: selectedContact.fullName || selectedContact.name, type: 'voice_message' })
+      });
+      setSent(true);
+      setTimeout(() => { setSent(false); setMessageText(''); setSelectedContact(null); }, 4000);
+    } catch {}
+    setSending(false);
+  };
+
+  const quickMessages = [
+    { text: `I love you so much, ${selectedContact?.fullName?.split(' ')[0] || 'dear'}! 💕`, emoji: '❤️' },
+    { text: `I'm thinking of you today. Give me a call when you can! 📞`, emoji: '💭' },
+    { text: `Thank you for the lovely photos. They made my day! 📸`, emoji: '🙏' },
+    { text: `I hope you're having a wonderful day. Warda is keeping me company! 🌹`, emoji: '☀️' },
+    { text: `Miss you so much. Can't wait to see you! 🤗`, emoji: '🤗' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600, margin: '0 auto', width: '100%' }}>
+      {sent ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', animation: 'fadeIn 0.3s ease' }}>
+          <div style={{ fontSize: 64 }}>💌</div>
+          <h3 style={{ fontSize: 22, fontFamily: 'Fraunces, serif', color: '#3D8B7A', margin: '12px 0' }}>Message Sent!</h3>
+          <p style={{ fontSize: 16, color: '#6B635B' }}>Your love has been delivered to {selectedContact?.fullName?.split(' ')[0]}</p>
+        </div>
+      ) : !selectedContact ? (
+        <>
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <div style={{ fontSize: 42 }}>💌</div>
+            <h3 style={{ fontSize: 20, fontFamily: 'Fraunces, serif', color: '#3D8B7A', margin: '8px 0' }}>Send Love to Family</h3>
+            <p style={{ fontSize: 14, color: '#6B635B' }}>Choose who you'd like to send a message to</p>
+          </div>
+          {contacts.length > 0 ? contacts.map((c: any, i: number) => (
+            <button key={i} onClick={() => setSelectedContact(c)} style={{
+              display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderRadius: 18, width: '100%',
+              background: isNight ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.82)', border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.06)' : '#D0E8E2'}`,
+              cursor: 'pointer', textAlign: 'left' as const,
+            }}>
+              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg, #D46B9D, #B85C8A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: '#fff' }}>
+                {c.relationship === 'son' || c.relationship === 'Son' ? '👨' : c.relationship === 'daughter' || c.relationship === 'Daughter' ? '👩' : c.relationship === 'grandchild' || c.relationship === 'Grandchild' ? '👶' : '👤'}
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: isNight ? '#E8E0D8' : '#2C2824' }}>{c.fullName || c.name}</div>
+                <div style={{ fontSize: 13, color: '#9B948C', textTransform: 'capitalize' as const }}>{c.relationship}</div>
+              </div>
+            </button>
+          )) : (
+            <div style={{ textAlign: 'center', padding: 40, color: '#9B948C' }}>No family contacts found. Ask staff to add your family members.</div>
+          )}
+          <div style={{ padding: '14px 20px', borderRadius: 14, background: isNight ? 'rgba(61,139,122,0.15)' : 'rgba(61,139,122,0.08)', textAlign: 'center', fontSize: 14, color: '#3D8B7A' }}>
+            💬 You can also say "Warda, tell Abid I love him" during a conversation
+          </div>
+        </>
+      ) : (
+        <>
+          <button onClick={() => setSelectedContact(null)} style={{ background: 'none', border: 'none', fontSize: 15, color: '#3D8B7A', cursor: 'pointer', fontWeight: 600 }}>← Back to contacts</button>
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, #D46B9D, #B85C8A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#fff', margin: '0 auto' }}>
+              {selectedContact.relationship === 'son' || selectedContact.relationship === 'Son' ? '👨' : selectedContact.relationship === 'daughter' || selectedContact.relationship === 'Daughter' ? '👩' : '👤'}
+            </div>
+            <h3 style={{ fontSize: 18, fontFamily: 'Fraunces, serif', color: '#3D8B7A', margin: '8px 0' }}>Message for {selectedContact.fullName?.split(' ')[0]}</h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontSize: 14, color: '#6B635B', fontWeight: 600 }}>Quick messages:</p>
+            {quickMessages.map((qm, i) => (
+              <button key={i} onClick={() => setMessageText(qm.text)} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 14, width: '100%',
+                background: messageText === qm.text ? '#E6F2EF' : (isNight ? 'rgba(255,255,255,0.04)' : '#F8FAFB'),
+                border: `1.5px solid ${messageText === qm.text ? '#3D8B7A' : (isNight ? 'rgba(255,255,255,0.06)' : '#E2E8F0')}`,
+                cursor: 'pointer', textAlign: 'left' as const, fontSize: 14, color: isNight ? '#E8E0D8' : '#2C2824',
+              }}><span style={{ fontSize: 20 }}>{qm.emoji}</span>{qm.text}</button>
+            ))}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <p style={{ fontSize: 14, color: '#6B635B', fontWeight: 600, marginBottom: 8 }}>Or write your own:</p>
+            <textarea value={messageText} onChange={e => setMessageText(e.target.value)} placeholder="Type your message here..." rows={3} style={{
+              width: '100%', padding: '14px 18px', borderRadius: 14, border: `2px solid #D0E8E2`, fontSize: 16, fontFamily: 'DM Sans, sans-serif',
+              color: isNight ? '#E8E0D8' : '#2C2824', background: isNight ? 'rgba(255,255,255,0.05)' : '#fff', resize: 'none' as const, outline: 'none',
+            }} />
+          </div>
+          <button onClick={sendMessage} disabled={!messageText.trim() || sending} style={{
+            width: '100%', padding: '16px', borderRadius: 16, border: 'none', fontSize: 16, fontWeight: 700, cursor: messageText.trim() ? 'pointer' : 'default',
+            background: messageText.trim() ? 'linear-gradient(135deg, #D46B9D, #B85C8A)' : '#E2E8F0', color: messageText.trim() ? '#fff' : '#94a3b8',
+          }}>{sending ? '⏳ Sending...' : `💌 Send to ${selectedContact.fullName?.split(' ')[0]}`}</button>
+          <button onClick={() => openConversation('voice')} style={{
+            width: '100%', padding: '14px', borderRadius: 16, background: isNight ? 'rgba(255,255,255,0.08)' : '#F1F5F9',
+            border: `1.5px solid ${isNight ? 'rgba(255,255,255,0.1)' : '#D0E8E2'}`, fontSize: 15, fontWeight: 600, cursor: 'pointer', color: '#3D8B7A',
+          }}>🎤 Tell Warda what to say instead</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   // ─── Device Status ────────────────────────────────────────────
   // Device is pre-activated at HQ. App just checks status.
@@ -1975,6 +2195,16 @@ export default function App() {
                   </div>
                 ))}
               </div>
+            )}
+
+            {/* ─── RECIPES ─── */}
+            {activeFeature === 'recipes' && (
+              <RecipeScreen residentId={resident?.id} isNight={isNight} openConversation={openConversation} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />
+            )}
+
+            {/* ─── VOICE MESSAGES TO FAMILY ─── */}
+            {activeFeature === 'voicemsg' && (
+              <VoiceMessageScreen residentId={resident?.id} isNight={isNight} openConversation={openConversation} residentName={resident?.preferredName || resident?.firstName || 'Friend'} />
             )}
           </div>
         </div>
