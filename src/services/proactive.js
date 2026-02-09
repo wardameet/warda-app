@@ -358,22 +358,23 @@ async function runProactiveCheck() {
     for (const resident of activeResidents) {
 
       // P1: Bedtime routine (9pm)
-      if (!msg) {
+      let timeMsg = null;
+      {
         const hour = new Date().getHours();
         if (hour === 21) {
           const bedtime = await generateBedtimeMessage(resident.id);
-          if (bedtime) msg = { type: "bedtime", message: bedtime.message, context: { voiceSpeed: "slow", volume: "low" } };
+          if (bedtime) timeMsg = { type: "bedtime", message: bedtime.message, context: { voiceSpeed: "slow", volume: "low" } };
         }
         else if (hour >= 7 && hour <= 8) {
           const morning = await generateMorningMessage(resident.id);
-          if (morning) msg = { type: "morning", message: morning.message, context: { voiceSpeed: "normal" } };
+          if (morning) timeMsg = { type: "morning", message: morning.message, context: { voiceSpeed: "normal" } };
         }
         else if (hour >= 14 && hour <= 16) {
           const prompt = await generateReminiscencePrompt(resident.id);
-          if (prompt) msg = { type: "reminiscence", message: prompt.prompt, context: { promptType: prompt.type } };
+          if (prompt) timeMsg = { type: "reminiscence", message: prompt.prompt, context: { promptType: prompt.type } };
         }
       }
-      const msg = await getProactiveMessage(resident.id);
+      const msg = timeMsg || await getProactiveMessage(resident.id);
       if (msg) {
         messages.push({ residentId: resident.id, ...msg });
       }
@@ -382,7 +383,7 @@ async function runProactiveCheck() {
     return messages;
   } catch (error) {
     console.error('Proactive check error:', error);
-    // return [];  // Schema ready now
+    return [];
   }
 }
 
