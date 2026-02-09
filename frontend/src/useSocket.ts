@@ -75,6 +75,7 @@ export function useSocket(
   const [incomingPhoto, setIncomingPhoto] = useState<IncomingPhoto | null>(null);
   const [helpConfirmed, setHelpConfirmed] = useState(false);
   const [messageQueue, setMessageQueue] = useState<IncomingMessage[]>([]);
+  const [incomingCall, setIncomingCall] = useState<any>(null);
 
   // Connect on mount
   useEffect(() => {
@@ -160,8 +161,7 @@ export function useSocket(
 
     // ---- Incoming call ----
     socket.on('call:incoming', (data) => {
-      console.log('📞 Incoming call from:', data.callerName);
-      // TODO: Show call overlay (Phase 2 - video calling)
+      console.log('📞 Incoming call from:', data.callerName); setIncomingCall(data);
     });
 
     // ---- Cleanup ----
@@ -240,5 +240,7 @@ export function useSocket(
     dismissMessage,
     dismissPhoto,
     messageQueue,
+    incomingCall,
+    dismissCall: () => setIncomingCall(null),
   };
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from './useSocket';
 import MessageOverlay from './MessageOverlay';
 import PhotoOverlay from './PhotoOverlay';
-import { IncomingCallOverlay } from './VideoCallComponents';
+import { IncomingCallOverlay, VideoCallScreen } from './VideoCallComponents';
 
 // ═══════════════════════════════════════════════════════════════════════
 // WARDA TABLET APP V2 — PRODUCTION
@@ -1270,6 +1270,7 @@ export default function App() {
   const [showMessageOverlay, setShowMessageOverlay] = useState(false);
   const [showPhotoOverlay, setShowPhotoOverlay] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
+  const [activeCall, setActiveCall] = useState<any>(null);
 
   // Handle real-time incoming message
   useEffect(() => {
@@ -1284,6 +1285,11 @@ export default function App() {
       setShowPhotoOverlay(true);
     }
   }, [socket.incomingPhoto, deviceStatus]);
+  useEffect(() => {
+    if (socket.incomingCall && deviceStatus === 'active') {
+      setIncomingCall(socket.incomingCall);
+    }
+  }, [socket.incomingCall, deviceStatus]);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -1770,7 +1776,7 @@ export default function App() {
                 body: JSON.stringify({ residentId: resident?.id })
               });
               const data = await res.json();
-              if (data.success) { /* Chime SDK video would start here */ }
+              if (data.success) { setActiveCall({ meeting: incomingCall.meeting, attendee: incomingCall.attendee || data.attendee, callerName: incomingCall.callerName }); }
             } catch (e) {}
             setIncomingCall(null);
           }}
@@ -1784,6 +1790,16 @@ export default function App() {
         />
       )}
 
+      {activeCall && (
+        <VideoCallScreen
+          callerName={activeCall.callerName}
+          onEndCall={async () => {
+            try { await fetch(API_BASE + '/api/video/end', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ residentId: resident?.id }) }); } catch {}
+            setActiveCall(null);
+            socket.dismissCall?.();
+          }}
+        />
+      )}
       {/* Subtle texture */}
       {!isNight && (
         <div style={{
