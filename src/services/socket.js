@@ -759,6 +759,50 @@ function getPresence(careHomeId) {
   return getOnlineUsersForCareHome(careHomeId);
 }
 
+
+// ─── Alert Escalation Timer ────────────────────────────────────
+// Auto-escalate unresolved HELP_BUTTON alerts after 5 minutes
+const ESCALATION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const escalationTimers = new Map();
+
+function startEscalationTimer(alertId, careHomeId, io) {
+  if (escalationTimers.has(alertId)) return;
+  const timer = setTimeout(async () => {
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      const alert = await prisma.alert.findUnique({ where: { id: alertId } });
+      if (alert && !alert.isResolved) {
+        // Update severity to critical
+        await prisma.alert.update({
+          where: { id: alertId },
+          data: { severity: 'critical', message: alert.message + ' [AUTO-ESCALATED: Unresolved for 5 minutes]' }
+        });
+        // Broadcast escalation
+        if (io) {
+          io.to('care-home-' + careHomeId).emit('alert:escalated', {
+            alertId, severity: 'critical', message: 'ESCALATED: ' + alert.message,
+            timestamp: new Date().toISOString()
+          });
+        }
+        console.log('⚠️ Alert escalated:', alertId);
+      }
+      escalationTimers.delete(alertId);
+    } catch (err) {
+      console.error('Escalation error:', err.message);
+    }
+  }, ESCALATION_TIMEOUT_MS);
+  escalationTimers.set(alertId, timer);
+}
+
+function cancelEscalation(alertId) {
+  const timer = escalationTimers.get(alertId);
+  if (timer) {
+    clearTimeout(timer);
+    escalationTimers.delete(alertId);
+  }
+}
+
 module.exports = { 
   initializeSocket,
   broadcastAlert,
