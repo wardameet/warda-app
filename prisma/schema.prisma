@@ -218,6 +218,7 @@ model User {
   lastName      String
   preferredName String?
   email         String?        @unique
+  username      String?        @unique
   dateOfBirth   DateTime?
   roomNumber    String?
   pin           String?

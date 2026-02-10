@@ -116,7 +116,6 @@ app.use('/api/video', videoRoutes);
 app.use('/api/browse', browseRoutes);
 app.use('/api/medications', medicationsRoutes);
 app.use('/api/health-logs', healthLogRoutes);
-app.use('/api/tablet', tabletAuthRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/activities', activitiesRoutes);
 app.use('/api/calendar', calendarRoutes);

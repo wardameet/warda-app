@@ -55,14 +55,14 @@ const fonts = {
 
 // Multi-language labels for UI
 const LANG_LABELS: Record<string, Record<string, string>> = {
-  English: { family:'Family', music:'Music', photos:'Photos', faith:'My Faith', myday:'My Day', recipes:'Recipes', voicemsg:'Send Love', talk:'Talk to Warda', type:'Type to Warda', help:'I Need Help', post:'Your Post Office', nopost:'No post today — but your family is thinking of you', haspost:'letters in your Post Office!' },
-  Arabic: { family:'العائلة', music:'الموسيقى', photos:'الصور', faith:'إيماني', myday:'يومي', recipes:'الوصفات', voicemsg:'أرسل حب', talk:'تحدث إلى وردة', type:'اكتب لوردة', help:'أحتاج مساعدة', post:'مكتب البريد', nopost:'لا بريد اليوم — لكن عائلتك تفكر فيك', haspost:'رسائل في مكتب بريدك!' },
-  French: { family:'Famille', music:'Musique', photos:'Photos', faith:'Ma Foi', myday:'Ma Journée', recipes:'Recettes', voicemsg:'Envoyer', talk:'Parler à Warda', type:'Écrire à Warda', help:"J'ai besoin d'aide", post:'Votre Bureau de Poste', nopost:"Pas de courrier aujourd'hui — mais votre famille pense à vous", haspost:'lettres dans votre boîte!' },
-  Spanish: { family:'Familia', music:'Música', photos:'Fotos', faith:'Mi Fe', myday:'Mi Día', recipes:'Recetas', voicemsg:'Enviar', talk:'Hablar con Warda', type:'Escribir a Warda', help:'Necesito ayuda', post:'Tu Oficina de Correos', nopost:'Sin correo hoy — pero tu familia piensa en ti', haspost:'cartas en tu correo!' },
-  Urdu: { family:'خاندان', music:'موسیقی', photos:'تصاویر', faith:'میرا ایمان', myday:'میرا دن', recipes:'ترکیبیں', voicemsg:'محبت بھیجیں', talk:'وردہ سے بات کریں', type:'وردہ کو لکھیں', help:'مجھے مدد چاہیے', post:'آپ کا ڈاک خانہ', nopost:'آج کوئی ڈاک نہیں — لیکن آپ کا خاندان آپ کے بارے میں سوچ رہا ہے', haspost:'خطوط آپ کے ڈاک خانے میں!' },
-  Hindi: { family:'परिवार', music:'संगीत', photos:'तस्वीरें', faith:'मेरा विश्वास', myday:'मेरा दिन', recipes:'व्यंजन', voicemsg:'प्यार भेजें', talk:'वर्दा से बात करें', type:'वर्दा को लिखें', help:'मुझे मदद चाहिए', post:'आपका डाकघर', nopost:'आज कोई डाक नहीं — लेकिन आपका परिवार आपके बारे में सोच रहा है', haspost:'पत्र आपके डाकघर में!' },
-  Welsh: { family:'Teulu', music:'Cerddoriaeth', photos:'Lluniau', faith:'Fy Ffydd', myday:'Fy Niwrnod', recipes:'Ryseitiau', voicemsg:'Anfon', talk:'Siarad â Warda', type:'Teipio i Warda', help:'Angen cymorth', post:'Eich Swyddfa Bost', nopost:"Dim post heddiw — ond mae'ch teulu'n meddwl amdanoch", haspost:'llythyrau yn eich post!' },
-  'Scottish Gaelic': { family:'Teaghlach', music:'Ceòl', photos:'Dealbhan', faith:'Mo Chreideamh', myday:'Mo Latha', recipes:'Reasabaidhean', voicemsg:'Cuir gaol', talk:'Bruidhinn ri Warda', type:'Sgrìobh gu Warda', help:'Cuideachadh', post:'An Oifis Puist agad', nopost:'Gun phost an-diugh — ach tha do theaghlach a smaoineachadh ort', haspost:'litrichean san oifis puist agad!' },
+  English: { family:'Family', music:'Music', photos:'Photos', faith:'Spiritual', myday:'My Day', recipes:'Activities', voicemsg:'Send Love', talk:'Talk to Warda', type:'Type to Warda', help:'I Need Help', post:'Your Post Office', nopost:'No post today — but your family is thinking of you', haspost:'letters in your Post Office!' },
+  Arabic: { family:'العائلة', music:'الموسيقى', photos:'الصور', faith:'روحاني', myday:'يومي', recipes:'الأنشطة', voicemsg:'أرسل حب', talk:'تحدث إلى وردة', type:'اكتب لوردة', help:'أحتاج مساعدة', post:'مكتب البريد', nopost:'لا بريد اليوم — لكن عائلتك تفكر فيك', haspost:'رسائل في مكتب بريدك!' },
+  French: { family:'Famille', music:'Musique', photos:'Photos', faith:'Spirituel', myday:'Ma Journée', recipes:'Activités', voicemsg:'Envoyer', talk:'Parler à Warda', type:'Écrire à Warda', help:"J'ai besoin d'aide", post:'Votre Bureau de Poste', nopost:"Pas de courrier aujourd'hui — mais votre famille pense à vous", haspost:'lettres dans votre boîte!' },
+  Spanish: { family:'Familia', music:'Música', photos:'Fotos', faith:'Espiritual', myday:'Mi Día', recipes:'Actividades', voicemsg:'Enviar', talk:'Hablar con Warda', type:'Escribir a Warda', help:'Necesito ayuda', post:'Tu Oficina de Correos', nopost:'Sin correo hoy — pero tu familia piensa en ti', haspost:'cartas en tu correo!' },
+  Urdu: { family:'خاندان', music:'موسیقی', photos:'تصاویر', faith:'روحانی', myday:'میرا دن', recipes:'سرگرمیاں', voicemsg:'محبت بھیجیں', talk:'وردہ سے بات کریں', type:'وردہ کو لکھیں', help:'مجھے مدد چاہیے', post:'آپ کا ڈاک خانہ', nopost:'آج کوئی ڈاک نہیں — لیکن آپ کا خاندان آپ کے بارے میں سوچ رہا ہے', haspost:'خطوط آپ کے ڈاک خانے میں!' },
+  Hindi: { family:'परिवार', music:'संगीत', photos:'तस्वीरें', faith:'आध्यात्मिक', myday:'मेरा दिन', recipes:'गतिविधियाँ', voicemsg:'प्यार भेजें', talk:'वर्दा से बात करें', type:'वर्दा को लिखें', help:'मुझे मदद चाहिए', post:'आपका डाकघर', nopost:'आज कोई डाक नहीं — लेकिन आपका परिवार आपके बारे में सोच रहा है', haspost:'पत्र आपके डाकघर में!' },
+  Welsh: { family:'Teulu', music:'Cerddoriaeth', photos:'Lluniau', faith:'Ysbrydol', myday:'Fy Niwrnod', recipes:'Gweithgareddau', voicemsg:'Anfon', talk:'Siarad â Warda', type:'Teipio i Warda', help:'Angen cymorth', post:'Eich Swyddfa Bost', nopost:"Dim post heddiw — ond mae'ch teulu'n meddwl amdanoch", haspost:'llythyrau yn eich post!' },
+  'Scottish Gaelic': { family:'Teaghlach', music:'Ceòl', photos:'Dealbhan', faith:'Spioradail', myday:'Mo Latha', recipes:'Gnìomhachdan', voicemsg:'Cuir gaol', talk:'Bruidhinn ri Warda', type:'Sgrìobh gu Warda', help:'Cuideachadh', post:'An Oifis Puist agad', nopost:'Gun phost an-diugh — ach tha do theaghlach a smaoineachadh ort', haspost:'litrichean san oifis puist agad!' },
 };
 const getLang = (profile: any) => profile?.languagePreference || 'English';
 const getLabels = (lang: string) => LANG_LABELS[lang] || LANG_LABELS['English'];
@@ -73,9 +73,9 @@ const ALL_FEATURES = [
   { id: 'family', label: 'Family', icon: '👨‍👩‍👧', color: P.familyBlue, colorSoft: P.blueSoft || '#EFF5FB', badge: 0 },
   { id: 'music',  label: 'Music',  icon: '🎵',    color: P.musicPurple, colorSoft: P.purpleSoft || '#F3F0FA' },
   { id: 'photos', label: 'Photos', icon: '📷',    color: P.photoAmber, colorSoft: P.amberSoft || '#FDF8EE' },
-  { id: 'faith',  label: 'My Faith', icon: '🙏',  color: P.faithGold, colorSoft: P.goldSoft || '#FBF6ED' },
+  { id: 'faith',  label: 'Spiritual', icon: '🙏',  color: P.faithGold, colorSoft: P.goldSoft || '#FBF6ED' },
   { id: 'myday',  label: 'My Day',   icon: '📅',  color: P.daySlate, colorSoft: P.tealSoft || '#E8F5F1' },
-  { id: 'recipes', label: 'Recipes', icon: '🍳', color: P.recipeOrange, colorSoft: P.roseSoft || '#FDF2F5' },
+  { id: 'recipes', label: 'Activities', icon: '🎯', color: P.recipeOrange, colorSoft: P.roseSoft || '#FDF2F5' },
   { id: 'voicemsg', label: 'Send Love', icon: '💌', color: P.voicePink, colorSoft: '#FDF2F8' },
 ];
 
@@ -1320,36 +1320,27 @@ export default function App() {
   // ─── Device Status Check ──────────────────────────────────────
   const checkDeviceStatus = useCallback(async () => {
     try {
-      const deviceToken = localStorage.getItem('warda_device_token');
+      const deviceToken = localStorage.getItem('warda_resident_id');
       if (!deviceToken) {
         // No token = device not yet activated at HQ
         setDeviceStatus('not_activated');
         return;
       }
 
-      const res = await fetch(`${API_BASE}/api/tablet/status`, {
-        headers: {
-          'Authorization': `Bearer ${deviceToken}`,
-          'Content-Type': 'application/json',
-        },
+      const res = await fetch(`${API_BASE}/api/tablet/verify?userId=${deviceToken}`, {
+        headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json();
 
-      if (data.success && data.status === 'ACTIVE') {
+      if (data.success && data.resident) {
         setResident(data.resident);
         localStorage.setItem('warda_resident', JSON.stringify(data.resident));
         localStorage.setItem('warda_resident_id', data.resident.id);
         localStorage.setItem('warda_last_status_check', Date.now().toString());
         localStorage.removeItem('warda_cancelled'); // Clear any previous cancellation
         setDeviceStatus('active');
-      } else if (data.status === 'SUSPENDED' || data.status === 'CANCELLED') {
-        setSuspendReason(data.status);
-        setDeviceStatus('suspended');
-        if (data.status === 'CANCELLED') {
-          // Stop all future checks — service ended
-          localStorage.setItem('warda_cancelled', 'true');
-          localStorage.removeItem('warda_last_status_check');
-        }
+      } else if (data.error) {
+        setDeviceStatus('not_activated');
       } else {
         setDeviceStatus('not_activated');
       }
@@ -1717,6 +1708,42 @@ export default function App() {
   });
 
   // ─── Status Screens ────────────────────────────────────────────
+  // ─── LOGIN SCREEN ───────────────────────────────────────────
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPin, setLoginPin] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!loginUsername.trim() || !loginPin.trim()) {
+      setLoginError('Please enter your username and PIN');
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/tablet/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginUsername.trim().toLowerCase(), pin: loginPin.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setResident(data.resident);
+        localStorage.setItem('warda_resident', JSON.stringify(data.resident));
+        localStorage.setItem('warda_resident_id', data.resident.id);
+        localStorage.setItem('warda_username', data.resident.username);
+        setDeviceStatus('active');
+      } else {
+        setLoginError(data.error || 'Login failed');
+      }
+    } catch {
+      setLoginError('Cannot connect. Please try again.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
   if (deviceStatus === 'loading') {
     return (
       <div style={{
@@ -1732,16 +1759,91 @@ export default function App() {
     );
   }
 
-  if (deviceStatus === 'not_activated') {
-    return <NotActivatedScreen />;
-  }
+  if (deviceStatus === 'not_activated' || deviceStatus === 'error') {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(170deg, #FAF8F5 0%, #F0ECE6 100%)',
+        fontFamily: fonts.body, padding: 40,
+      }}>
+        {/* Background orbs */}
+        <div style={{ position: 'absolute', top: -100, right: -100, width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(45,155,131,0.08), transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: -80, left: -80, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(196,162,101,0.06), transparent 70%)', pointerEvents: 'none' }} />
 
-  if (deviceStatus === 'suspended') {
-    return <SuspendedScreen reason={suspendReason} />;
-  }
+        <div style={{ position: 'relative', zIndex: 5, display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 420 }}>
+          {/* Rose */}
+          <div style={{ fontSize: 64, marginBottom: 8 }}>🌹</div>
+          <h1 style={{ fontSize: 32, fontFamily: fonts.heading, fontWeight: 300, fontStyle: 'italic', color: P.teal, margin: '0 0 4px' }}>Welcome to Warda</h1>
+          <p style={{ fontSize: 15, color: P.textMuted, marginBottom: 32 }}>Sign in to connect with your companion</p>
 
-  if (deviceStatus === 'error') {
-    return <ConnectionErrorScreen onRetry={checkDeviceStatus} />;
+          {/* Username */}
+          <div style={{ width: '100%', marginBottom: 16 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: P.textSoft, display: 'block', marginBottom: 6 }}>Username</label>
+            <input
+              value={loginUsername}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLoginUsername(e.target.value)}
+              placeholder="e.g. hafsa.rguib.warda"
+              style={{
+                width: '100%', padding: '16px 20px', borderRadius: 16, border: '2px solid ' + P.tealLight,
+                fontSize: 18, fontFamily: fonts.body, color: P.text, background: P.surface,
+                outline: 'none', boxSizing: 'border-box',
+              }}
+              onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.style.borderColor = P.teal}
+              onBlur={(e: React.FocusEvent<HTMLInputElement>) => e.target.style.borderColor = P.tealLight}
+            />
+          </div>
+
+          {/* PIN */}
+          <div style={{ width: '100%', marginBottom: 20 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: P.textSoft, display: 'block', marginBottom: 6 }}>PIN</label>
+            <input
+              type="password"
+              value={loginPin}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLoginPin(e.target.value)}
+              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleLogin()}
+              placeholder="Enter your 4-digit PIN"
+              maxLength={6}
+              style={{
+                width: '100%', padding: '16px 20px', borderRadius: 16, border: '2px solid ' + P.tealLight,
+                fontSize: 24, fontFamily: fonts.body, color: P.text, background: P.surface,
+                outline: 'none', letterSpacing: 8, textAlign: 'center', boxSizing: 'border-box',
+              }}
+              onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.style.borderColor = P.teal}
+              onBlur={(e: React.FocusEvent<HTMLInputElement>) => e.target.style.borderColor = P.tealLight}
+            />
+          </div>
+
+          {/* Error */}
+          {loginError && (
+            <div style={{ width: '100%', padding: '12px 16px', borderRadius: 12, background: P.helpRedBg, border: '1px solid ' + P.helpRedBorder, color: P.helpRed, fontSize: 14, fontWeight: 600, textAlign: 'center', marginBottom: 16 }}>
+              {loginError}
+            </div>
+          )}
+
+          {/* Login Button */}
+          <button
+            onClick={handleLogin}
+            disabled={loginLoading}
+            style={{
+              width: '100%', padding: '18px', borderRadius: 18, border: 'none', cursor: 'pointer',
+              background: loginLoading ? P.textMuted : 'linear-gradient(135deg, ' + P.teal + ', ' + P.tealDeep + ')',
+              color: '#fff', fontSize: 18, fontWeight: 700, fontFamily: fonts.body,
+              boxShadow: '0 8px 32px rgba(45,155,131,0.4)',
+              transition: 'all 0.3s ease',
+            }}
+          >
+            {loginLoading ? 'Connecting...' : 'Connect to Warda 🌹'}
+          </button>
+
+          <p style={{ fontSize: 12, color: P.textMuted, marginTop: 24, textAlign: 'center', lineHeight: 1.5 }}>
+            Your username and PIN were provided by your family or care team.<br/>
+            Need help? Contact your family or call support.
+          </p>
+          <div style={{ fontSize: 11, color: P.textLight, marginTop: 16 }}>© 2026 Eletiser Ltd · Meet Warda™</div>
+        </div>
+      </div>
+    );
   }
 
   // ─── Main App ─────────────────────────────────────────────────
