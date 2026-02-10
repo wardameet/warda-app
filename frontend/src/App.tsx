@@ -55,14 +55,14 @@ const fonts = {
 
 // Multi-language labels for UI
 const LANG_LABELS: Record<string, Record<string, string>> = {
-  English: { family:'Family', music:'Music', photos:'Photos', faith:'Spiritual', myday:'My Day', recipes:'Activities', voicemsg:'Send Love', talk:'Talk to Warda', type:'Type to Warda', help:'I Need Help', post:'Your Post Office', nopost:'No post today — but your family is thinking of you', haspost:'letters in your Post Office!' },
-  Arabic: { family:'العائلة', music:'الموسيقى', photos:'الصور', faith:'روحاني', myday:'يومي', recipes:'الأنشطة', voicemsg:'أرسل حب', talk:'تحدث إلى وردة', type:'اكتب لوردة', help:'أحتاج مساعدة', post:'مكتب البريد', nopost:'لا بريد اليوم — لكن عائلتك تفكر فيك', haspost:'رسائل في مكتب بريدك!' },
-  French: { family:'Famille', music:'Musique', photos:'Photos', faith:'Spirituel', myday:'Ma Journée', recipes:'Activités', voicemsg:'Envoyer', talk:'Parler à Warda', type:'Écrire à Warda', help:"J'ai besoin d'aide", post:'Votre Bureau de Poste', nopost:"Pas de courrier aujourd'hui — mais votre famille pense à vous", haspost:'lettres dans votre boîte!' },
-  Spanish: { family:'Familia', music:'Música', photos:'Fotos', faith:'Espiritual', myday:'Mi Día', recipes:'Actividades', voicemsg:'Enviar', talk:'Hablar con Warda', type:'Escribir a Warda', help:'Necesito ayuda', post:'Tu Oficina de Correos', nopost:'Sin correo hoy — pero tu familia piensa en ti', haspost:'cartas en tu correo!' },
-  Urdu: { family:'خاندان', music:'موسیقی', photos:'تصاویر', faith:'روحانی', myday:'میرا دن', recipes:'سرگرمیاں', voicemsg:'محبت بھیجیں', talk:'وردہ سے بات کریں', type:'وردہ کو لکھیں', help:'مجھے مدد چاہیے', post:'آپ کا ڈاک خانہ', nopost:'آج کوئی ڈاک نہیں — لیکن آپ کا خاندان آپ کے بارے میں سوچ رہا ہے', haspost:'خطوط آپ کے ڈاک خانے میں!' },
-  Hindi: { family:'परिवार', music:'संगीत', photos:'तस्वीरें', faith:'आध्यात्मिक', myday:'मेरा दिन', recipes:'गतिविधियाँ', voicemsg:'प्यार भेजें', talk:'वर्दा से बात करें', type:'वर्दा को लिखें', help:'मुझे मदद चाहिए', post:'आपका डाकघर', nopost:'आज कोई डाक नहीं — लेकिन आपका परिवार आपके बारे में सोच रहा है', haspost:'पत्र आपके डाकघर में!' },
-  Welsh: { family:'Teulu', music:'Cerddoriaeth', photos:'Lluniau', faith:'Ysbrydol', myday:'Fy Niwrnod', recipes:'Gweithgareddau', voicemsg:'Anfon', talk:'Siarad â Warda', type:'Teipio i Warda', help:'Angen cymorth', post:'Eich Swyddfa Bost', nopost:"Dim post heddiw — ond mae'ch teulu'n meddwl amdanoch", haspost:'llythyrau yn eich post!' },
-  'Scottish Gaelic': { family:'Teaghlach', music:'Ceòl', photos:'Dealbhan', faith:'Spioradail', myday:'Mo Latha', recipes:'Gnìomhachdan', voicemsg:'Cuir gaol', talk:'Bruidhinn ri Warda', type:'Sgrìobh gu Warda', help:'Cuideachadh', post:'An Oifis Puist agad', nopost:'Gun phost an-diugh — ach tha do theaghlach a smaoineachadh ort', haspost:'litrichean san oifis puist agad!' },
+  English: { howAreYou:'How are you today?', family:'Family', music:'Music', photos:'Photos', faith:'Spiritual', myday:'My Day', recipes:'Activities', voicemsg:'Send Love', talk:'Talk to Warda', type:'Type to Warda', help:'I Need Help', post:'Your Post Office', nopost:'No post today — but your family is thinking of you', haspost:'letters in your Post Office!' },
+  Arabic: { howAreYou:'كيف حالك اليوم؟', family:'العائلة', music:'الموسيقى', photos:'الصور', faith:'روحاني', myday:'يومي', recipes:'الأنشطة', voicemsg:'أرسل حب', talk:'تحدث إلى وردة', type:'اكتب لوردة', help:'أحتاج مساعدة', post:'مكتب البريد', nopost:'لا بريد اليوم — لكن عائلتك تفكر فيك', haspost:'رسائل في مكتب بريدك!' },
+  French: { howAreYou:'Comment allez-vous?', family:'Famille', music:'Musique', photos:'Photos', faith:'Spirituel', myday:'Ma Journée', recipes:'Activités', voicemsg:'Envoyer', talk:'Parler à Warda', type:'Écrire à Warda', help:"J'ai besoin d'aide", post:'Votre Bureau de Poste', nopost:"Pas de courrier aujourd'hui — mais votre famille pense à vous", haspost:'lettres dans votre boîte!' },
+  Spanish: { howAreYou:'¿Cómo estás hoy?', family:'Familia', music:'Música', photos:'Fotos', faith:'Espiritual', myday:'Mi Día', recipes:'Actividades', voicemsg:'Enviar', talk:'Hablar con Warda', type:'Escribir a Warda', help:'Necesito ayuda', post:'Tu Oficina de Correos', nopost:'Sin correo hoy — pero tu familia piensa en ti', haspost:'cartas en tu correo!' },
+  Urdu: { howAreYou:'آج آپ کیسے ہیں؟', family:'خاندان', music:'موسیقی', photos:'تصاویر', faith:'روحانی', myday:'میرا دن', recipes:'سرگرمیاں', voicemsg:'محبت بھیجیں', talk:'وردہ سے بات کریں', type:'وردہ کو لکھیں', help:'مجھے مدد چاہیے', post:'آپ کا ڈاک خانہ', nopost:'آج کوئی ڈاک نہیں — لیکن آپ کا خاندان آپ کے بارے میں سوچ رہا ہے', haspost:'خطوط آپ کے ڈاک خانے میں!' },
+  Hindi: { howAreYou:'आज आप कैसे हैं?', family:'परिवार', music:'संगीत', photos:'तस्वीरें', faith:'आध्यात्मिक', myday:'मेरा दिन', recipes:'गतिविधियाँ', voicemsg:'प्यार भेजें', talk:'वर्दा से बात करें', type:'वर्दा को लिखें', help:'मुझे मदद चाहिए', post:'आपका डाकघर', nopost:'आज कोई डाक नहीं — लेकिन आपका परिवार आपके बारे में सोच रहा है', haspost:'पत्र आपके डाकघर में!' },
+  Welsh: { howAreYou:'Sut ydych chi heddiw?', family:'Teulu', music:'Cerddoriaeth', photos:'Lluniau', faith:'Ysbrydol', myday:'Fy Niwrnod', recipes:'Gweithgareddau', voicemsg:'Anfon', talk:'Siarad â Warda', type:'Teipio i Warda', help:'Angen cymorth', post:'Eich Swyddfa Bost', nopost:"Dim post heddiw — ond mae'ch teulu'n meddwl amdanoch", haspost:'llythyrau yn eich post!' },
+  'Scottish Gaelic': { howAreYou:'Ciamar a tha thu?', family:'Teaghlach', music:'Ceòl', photos:'Dealbhan', faith:'Spioradail', myday:'Mo Latha', recipes:'Gnìomhachdan', voicemsg:'Cuir gaol', talk:'Bruidhinn ri Warda', type:'Sgrìobh gu Warda', help:'Cuideachadh', post:'An Oifis Puist agad', nopost:'Gun phost an-diugh — ach tha do theaghlach a smaoineachadh ort', haspost:'litrichean san oifis puist agad!' },
 };
 const getLang = (profile: any) => profile?.languagePreference || 'English';
 const getLabels = (lang: string) => LANG_LABELS[lang] || LANG_LABELS['English'];
@@ -1973,7 +1973,7 @@ export default function App() {
                 border: '1px solid ' + (isNight ? 'rgba(255,255,255,0.1)' : P.glassBorder || 'rgba(255,255,255,0.35)'),
               }}>🌍 {LANG_NATIVE[getLang(resident?.profile)] || 'English'}</div>
             </div>
-            <HelpButton />
+            {/* HelpButton moved to bottom of ambient screen */}
           </div>
         </div>
       )}
@@ -2013,29 +2013,69 @@ export default function App() {
           paddingTop: 4,
           zIndex: 5, position: 'relative',
         }}>
-          {/* Warda + Greeting */}
+          {/* Warda Rose + Greeting */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <TriangleCircle variant="warda" label="" onClick={() => {}} animDelay={0} />
+            <div style={{ animation: 'float 4s ease-in-out infinite', marginBottom: 6 }}>
+              <div style={{ position: 'relative', width: 110, height: 110 }}>
+                <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', background: 'radial-gradient(circle, ' + P.tealGlow + ', transparent 70%)', animation: 'pulse 3s ease-in-out infinite' }} />
+                <div style={{
+                  width: 110, height: 110, borderRadius: '50%',
+                  background: 'linear-gradient(150deg, ' + P.teal + ', ' + P.tealDeep + ')',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 6px 32px rgba(45,155,131,0.35)',
+                  animation: 'breathe 4s ease-in-out infinite',
+                }}>
+                  <span style={{ fontSize: 52 }}>🌹</span>
+                </div>
+              </div>
+            </div>
             <h1 style={{
-              fontSize: 22, fontFamily: fonts.heading, fontWeight: 400,
+              fontSize: 26, fontFamily: fonts.heading, fontWeight: 300, fontStyle: 'italic',
               color: isNight ? 'rgba(232,224,216,0.85)' : P.teal,
-              fontStyle: 'italic', margin: '8px 0 0', textAlign: 'center',
-              lineHeight: 1.2,
+              textAlign: 'center', lineHeight: 1.3, margin: '4px 0 0',
             }}>{greeting}</h1>
+            <p style={{ fontSize: 15, color: isNight ? 'rgba(232,224,216,0.45)' : P.textMuted, fontFamily: fonts.body, marginTop: 2 }}>
+              {getLabels(getLang(resident?.profile)).howAreYou || 'How are you today?'}
+            </p>
           </div>
 
-          {/* Talk + Type */}
-          <div style={{ display: 'flex', gap: 44, justifyContent: 'center', marginTop: 20 }}>
-            <TriangleCircle variant="talk" icon="🎤" label="Talk to Warda" onClick={() => openConversation('voice')} animDelay={150} />
-            <TriangleCircle variant="type" icon="⌨️" label="Type to Warda" onClick={() => openConversation('type')} animDelay={250} />
+          {/* Talk + Type Action Buttons */}
+          <div style={{ display: 'flex', gap: 16, padding: '0 28px', width: '100%', maxWidth: 600, marginTop: 24 }}>
+            <div onClick={() => openConversation('voice')} style={{
+              display: 'flex', alignItems: 'center', gap: 14, padding: '18px 28px',
+              borderRadius: 22, cursor: 'pointer', flex: 1,
+              background: 'linear-gradient(135deg, ' + P.teal + ', ' + P.tealDeep + ')',
+              boxShadow: '0 8px 32px rgba(45,155,131,0.4), inset 0 1px 0 rgba(255,255,255,0.2)',
+            }}>
+              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🎤</div>
+              <div style={{ fontSize: 17, fontWeight: 700, fontFamily: fonts.body, color: '#fff', letterSpacing: 0.3 }}>{getLabels(getLang(resident?.profile)).talk || 'Talk to Warda'}</div>
+            </div>
+            <div onClick={() => openConversation('type')} style={{
+              display: 'flex', alignItems: 'center', gap: 14, padding: '18px 28px',
+              borderRadius: 22, cursor: 'pointer', flex: 1,
+              background: P.surface, border: '2px solid ' + P.teal + '33',
+              boxShadow: P.shadow,
+            }}>
+              <div style={{ width: 48, height: 48, borderRadius: '50%', background: P.tealSoft || P.tealLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>⌨️</div>
+              <div style={{ fontSize: 17, fontWeight: 700, fontFamily: fonts.body, color: P.teal, letterSpacing: 0.3 }}>{getLabels(getLang(resident?.profile)).type || 'Type to Warda'}</div>
+            </div>
           </div>
 
-          {/* Features */}
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: '0 20px', marginTop: 24 }}>
-            {features.map((f, i) => (
-              <FeatureIcon key={f.id} feature={f} onTap={(id) => {
-                setActiveFeature(id); setMode('feature');
-              }} animDelay={500 + i * 150} />
+          {/* Feature Cards */}
+          <div style={{ display: 'flex', gap: 12, padding: '0 28px', marginTop: 24, overflowX: 'auto', width: '100%', maxWidth: 650, justifyContent: 'center' }}>
+            {features.map((f: any, i: number) => (
+              <div key={f.id} onClick={() => { setActiveFeature(f.id); setMode('feature'); }} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                padding: '20px 10px', borderRadius: 24, cursor: 'pointer',
+                background: f.colorSoft || P.surface, border: '1.5px solid ' + f.color + '22',
+                minWidth: 90, position: 'relative',
+                boxShadow: '0 2px 12px ' + f.color + '15',
+                transition: 'transform 0.3s ease',
+              }}>
+                {f.badge > 0 && <div style={{ position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, background: P.helpRed, color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', boxShadow: '0 2px 6px rgba(212,91,91,0.4)' }}>{f.badge}</div>}
+                <div style={{ fontSize: 32, lineHeight: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}>{f.icon}</div>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: f.color, fontFamily: fonts.body, letterSpacing: 0.3 }}>{f.label}</div>
+              </div>
             ))}
           </div>
 
@@ -2043,12 +2083,11 @@ export default function App() {
           <div style={{ padding: '0 28px', width: '100%', display: 'flex', justifyContent: 'center', marginTop: 20 }}>
             <div onClick={() => { setActiveFeature('family'); setMode('feature'); }} style={{
               padding: '20px 24px', borderRadius: 22, width: '100%', maxWidth: 600,
-              background: isNight ? 'rgba(255,255,255,0.04)' : P.surfaceGlass,
+              background: isNight ? 'rgba(255,255,255,0.04)' : (P.surfaceGlass || 'rgba(255,255,255,0.72)'),
               backdropFilter: 'blur(20px)',
               border: '1px solid ' + (isNight ? 'rgba(255,255,255,0.06)' : (P.glassBorder || 'rgba(255,255,255,0.35)')),
               display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer',
               boxShadow: P.shadow,
-              transition: 'transform 0.3s ease',
             }}>
               <div style={{ fontSize: 36 }}>{pendingFamilyMessages > 0 ? '💌' : '📭'}</div>
               <div style={{ flex: 1 }}>
@@ -2056,10 +2095,25 @@ export default function App() {
                   {pendingFamilyMessages > 0 ? (pendingFamilyMessages + ' ' + (getLabels(getLang(resident?.profile)).haspost || 'letters in your Post Office!')) : (getLabels(getLang(resident?.profile)).post || 'Your Post Office')}
                 </div>
                 <div style={{ fontSize: 13, color: isNight ? 'rgba(232,224,216,0.45)' : P.textMuted, marginTop: 3 }}>
-                  {pendingFamilyMessages > 0 ? 'Tap to read your post' : (getLabels(getLang(resident?.profile)).nopost || 'No post today — but your family is thinking of you')}
+                  {pendingFamilyMessages > 0 ? 'Tap to read your post' : (getLabels(getLang(resident?.profile)).nopost || 'No post today \u2014 but your family is thinking of you')}
                 </div>
               </div>
-              <div style={{ fontSize: 20, color: P.teal, opacity: 0.5 }}>→</div>
+              <div style={{ fontSize: 20, color: P.teal, opacity: 0.5 }}>\u2192</div>
+            </div>
+          </div>
+
+          {/* 🆘 Help Button */}
+          <div style={{ padding: '0 28px', width: '100%', display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+            <div onClick={() => {
+              const helpBtn = document.querySelector('[data-help-btn]') as HTMLButtonElement;
+              if (helpBtn) helpBtn.click();
+            }} style={{
+              padding: '14px 24px', borderRadius: 18, width: '100%', maxWidth: 600,
+              background: P.helpRedBg, border: '2px solid ' + P.helpRed + '22', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            }}>
+              <span style={{ fontSize: 20 }}>🆘</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: P.helpRed }}>{getLabels(getLang(resident?.profile)).help || 'I Need Help'}</span>
             </div>
           </div>
 
