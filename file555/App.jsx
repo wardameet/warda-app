@@ -1,127 +1,91 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ═══════════════════════════════════════════════════════════════
-// 🌹 WARDA TABLET PROTOTYPE — Premium Elderly Companion
-// Design Direction: Warm Luxury meets Gentle Technology
-// Inspired by: Calm app, Apple Health, Four Seasons hospitality
+// 🌹 WARDA TABLET — Premium Design + Full API Wiring
+// Claude AI, Polly Voice, Speech Recognition, Family Messages
 // ═══════════════════════════════════════════════════════════════
 
 const API_BASE = "https://api.meetwarda.com";
 const TABLET_CONFIG = { residentId: "0bc59f43-44d4-4e50-bbd5-dafcad6f3bba" };
 
 const LANGUAGES = {
-  English: { hello: "Hello", howAreYou: "How are you today?", talkTo: "Talk to Warda", typeToWarda: "Type to Warda", family: "Family", music: "Music", photos: "Photos", faith: "Spiritual", myDay: "My Day", activities: "Activities", sendLove: "Send Love", help: "I Need Help", settings: "Settings", postOffice: "Your Post Office", postOfficeEmpty: "No post today — but your family is thinking of you", dir: "ltr" },
-  Arabic: { hello: "مرحبا", howAreYou: "كيف حالك اليوم؟", talkTo: "تحدث إلى وردة", typeToWarda: "اكتب لوردة", family: "العائلة", music: "الموسيقى", photos: "الصور", faith: "إيماني", myDay: "يومي", activities: "الأنشطة", sendLove: "أرسل حباً", help: "أحتاج مساعدة", settings: "الإعدادات", postOffice: "بريدك", postOfficeEmpty: "لا بريد اليوم — لكن عائلتك تفكر بك", dir: "rtl" },
-  French: { hello: "Bonjour", howAreYou: "Comment allez-vous?", talkTo: "Parler à Warda", typeToWarda: "Écrire à Warda", family: "Famille", music: "Musique", photos: "Photos", faith: "Ma Foi", myDay: "Ma Journée", activities: "Activités", sendLove: "Envoyer Amour", help: "J'ai besoin d'aide", settings: "Paramètres", postOffice: "Votre Courrier", postOfficeEmpty: "Pas de courrier — mais votre famille pense à vous", dir: "ltr" },
-  Spanish: { hello: "Hola", howAreYou: "¿Cómo estás hoy?", talkTo: "Hablar con Warda", typeToWarda: "Escribir a Warda", family: "Familia", music: "Música", photos: "Fotos", faith: "Mi Fe", myDay: "Mi Día", activities: "Actividades", sendLove: "Enviar Amor", help: "Necesito ayuda", settings: "Ajustes", postOffice: "Tu Correo", postOfficeEmpty: "Sin correo hoy — pero tu familia piensa en ti", dir: "ltr" },
-  Urdu: { hello: "سلام", howAreYou: "آج آپ کیسے ہیں؟", talkTo: "وردہ سے بات کریں", typeToWarda: "وردہ کو لکھیں", family: "خاندان", music: "موسیقی", photos: "تصاویر", faith: "میرا ایمان", myDay: "میرا دن", activities: "سرگرمیاں", sendLove: "محبت بھیجیں", help: "مجھے مدد چاہیے", settings: "ترتیبات", postOffice: "آپ کا ڈاک خانہ", postOfficeEmpty: "آج کوئی ڈاک نہیں — لیکن آپ کا خاندان آپ کے بارے میں سوچ رہا ہے", dir: "rtl" },
-  Hindi: { hello: "नमस्ते", howAreYou: "आज आप कैसे हैं?", talkTo: "वर्दा से बात करें", typeToWarda: "वर्दा को लिखें", family: "परिवार", music: "संगीत", photos: "तस्वीरें", faith: "मेरा विश्वास", myDay: "मेरा दिन", activities: "गतिविधियाँ", sendLove: "प्यार भेजें", help: "मुझे मदद चाहिए", settings: "सेटिंग्स", postOffice: "आपका डाकघर", postOfficeEmpty: "आज कोई डाक नहीं — लेकिन आपका परिवार आपके बारे में सोच रहा है", dir: "ltr" },
-  Welsh: { hello: "Bore da", howAreYou: "Sut ydych chi heddiw?", talkTo: "Siarad â Warda", typeToWarda: "Teipio i Warda", family: "Teulu", music: "Cerddoriaeth", photos: "Lluniau", faith: "Fy Ffydd", myDay: "Fy Niwrnod", activities: "Gweithgareddau", sendLove: "Anfon Cariad", help: "Angen cymorth", settings: "Gosodiadau", postOffice: "Eich Swyddfa Bost", postOfficeEmpty: "Dim post heddiw — ond mae eich teulu yn meddwl amdanoch", dir: "ltr" },
-  "Scottish Gaelic": { hello: "Madainn mhath", howAreYou: "Ciamar a tha thu?", talkTo: "Bruidhinn ri Warda", typeToWarda: "Sgrìobh gu Warda", family: "Teaghlach", music: "Ceòl", photos: "Dealbhan", faith: "Mo Chreideamh", myDay: "Mo Latha", activities: "Gnìomhachdan", sendLove: "Cuir Gaol", help: "Tha mi feumach air cuideachadh", settings: "Roghainnean", postOffice: "Oifis a' Phuist Agad", postOfficeEmpty: "Gun phost an-diugh — ach tha do theaghlach a' smaoineachadh ort", dir: "ltr" },
+  English: { hello: "Hello", howAreYou: "How are you today?", talkTo: "Talk to Warda", typeToWarda: "Type to Warda", family: "Family", music: "Music", photos: "Photos", faith: "Spiritual", myDay: "My Day", sendLove: "Send Love", help: "I Need Help", postOffice: "Your Post Office", postOfficeEmpty: "No post today \u2014 but your family is thinking of you", dir: "ltr" },
+  Arabic: { hello: "\u0645\u0631\u062d\u0628\u0627", howAreYou: "\u0643\u064a\u0641 \u062d\u0627\u0644\u0643 \u0627\u0644\u064a\u0648\u0645\u061f", talkTo: "\u062a\u062d\u062f\u062b \u0625\u0644\u0649 \u0648\u0631\u062f\u0629", typeToWarda: "\u0627\u0643\u062a\u0628 \u0644\u0648\u0631\u062f\u0629", family: "\u0627\u0644\u0639\u0627\u0626\u0644\u0629", music: "\u0627\u0644\u0645\u0648\u0633\u064a\u0642\u0649", photos: "\u0627\u0644\u0635\u0648\u0631", faith: "\u0625\u064a\u0645\u0627\u0646\u064a", myDay: "\u064a\u0648\u0645\u064a", sendLove: "\u0623\u0631\u0633\u0644 \u062d\u0628\u0627\u064b", help: "\u0623\u062d\u062a\u0627\u062c \u0645\u0633\u0627\u0639\u062f\u0629", postOffice: "\u0628\u0631\u064a\u062f\u0643", postOfficeEmpty: "\u0644\u0627 \u0628\u0631\u064a\u062f \u0627\u0644\u064a\u0648\u0645", dir: "rtl" },
+  French: { hello: "Bonjour", howAreYou: "Comment allez-vous?", talkTo: "Parler \u00e0 Warda", typeToWarda: "\u00c9crire \u00e0 Warda", family: "Famille", music: "Musique", photos: "Photos", faith: "Ma Foi", myDay: "Ma Journ\u00e9e", sendLove: "Envoyer Amour", help: "J'ai besoin d'aide", postOffice: "Votre Courrier", postOfficeEmpty: "Pas de courrier", dir: "ltr" },
+  Spanish: { hello: "Hola", howAreYou: "\u00bfC\u00f3mo est\u00e1s hoy?", talkTo: "Hablar con Warda", typeToWarda: "Escribir a Warda", family: "Familia", music: "M\u00fasica", photos: "Fotos", faith: "Mi Fe", myDay: "Mi D\u00eda", sendLove: "Enviar Amor", help: "Necesito ayuda", postOffice: "Tu Correo", postOfficeEmpty: "Sin correo hoy", dir: "ltr" },
+  Urdu: { hello: "\u0633\u0644\u0627\u0645", howAreYou: "\u0622\u062c \u0622\u067e \u06a9\u06cc\u0633\u06d2 \u06c1\u06cc\u06ba\u061f", talkTo: "\u0648\u0631\u062f\u06c1 \u0633\u06d2 \u0628\u0627\u062a \u06a9\u0631\u06cc\u06ba", typeToWarda: "\u0648\u0631\u062f\u06c1 \u06a9\u0648 \u0644\u06a9\u06be\u06cc\u06ba", family: "\u062e\u0627\u0646\u062f\u0627\u0646", music: "\u0645\u0648\u0633\u06cc\u0642\u06cc", photos: "\u062a\u0635\u0627\u0648\u06cc\u0631", faith: "\u0645\u06cc\u0631\u0627 \u0627\u06cc\u0645\u0627\u0646", myDay: "\u0645\u06cc\u0631\u0627 \u062f\u0646", sendLove: "\u0645\u062d\u0628\u062a \u0628\u06be\u06cc\u062c\u06cc\u06ba", help: "\u0645\u062c\u06be\u06d2 \u0645\u062f\u062f \u0686\u0627\u06c1\u06cc\u06d2", postOffice: "\u0622\u067e \u06a9\u0627 \u0688\u0627\u06a9 \u062e\u0627\u0646\u06c1", postOfficeEmpty: "\u0622\u062c \u06a9\u0648\u0626\u06cc \u0688\u0627\u06a9 \u0646\u06c1\u06cc\u06ba", dir: "rtl" },
+  Hindi: { hello: "\u0928\u092e\u0938\u094d\u0924\u0947", howAreYou: "\u0906\u091c \u0906\u092a \u0915\u0948\u0938\u0947 \u0939\u0948\u0902?", talkTo: "\u0935\u0930\u094d\u0926\u0927 \u0938\u0947 \u092c\u0927\u0924 \u0915\u0930\u0947\u0902", typeToWarda: "\u0935\u0930\u094d\u0926\u0927 \u0915\u094b \u0932\u093f\u0916\u0947\u0902", family: "\u092a\u0930\u093f\u0935\u093e\u0930", music: "\u0938\u0902\u0917\u0940\u0924", photos: "\u0924\u0938\u094d\u0935\u0940\u0930\u0947\u0902", faith: "\u092e\u0947\u0930\u093e \u0935\u093f\u0936\u094d\u0935\u093e\u0938", myDay: "\u092e\u0947\u0930\u093e \u0926\u093f\u0928", sendLove: "\u092a\u094d\u092f\u093e\u0930 \u092d\u0947\u091c\u0947\u0902", help: "\u092e\u0941\u091d\u0947 \u092e\u0926\u0926 \u091a\u093e\u0939\u093f\u090f", postOffice: "\u0906\u092a\u0915\u093e \u0921\u093e\u0915\u0918\u0930", postOfficeEmpty: "\u0906\u091c \u0915\u094b\u0908 \u0921\u093e\u0915 \u0928\u0939\u0940\u0902", dir: "ltr" },
+  Welsh: { hello: "Bore da", howAreYou: "Sut ydych chi heddiw?", talkTo: "Siarad \u00e2 Warda", typeToWarda: "Teipio i Warda", family: "Teulu", music: "Cerddoriaeth", photos: "Lluniau", faith: "Fy Ffydd", myDay: "Fy Niwrnod", sendLove: "Anfon Cariad", help: "Angen cymorth", postOffice: "Eich Swyddfa Bost", postOfficeEmpty: "Dim post heddiw", dir: "ltr" },
+  "Scottish Gaelic": { hello: "Madainn mhath", howAreYou: "Ciamar a tha thu?", talkTo: "Bruidhinn ri Warda", typeToWarda: "Sgr\u00ecobh gu Warda", family: "Teaghlach", music: "Ce\u00f2l", photos: "Dealbhan", faith: "Mo Chreideamh", myDay: "Mo Latha", sendLove: "Cuir Gaol", help: "Tha mi feumach air cuideachadh", postOffice: "Oifis a' Phuist Agad", postOfficeEmpty: "Gun phost an-diugh", dir: "ltr" },
 };
 
-// Premium color palette
 const P = {
-  bg: "#FAF8F5",
-  bgDeep: "#F0ECE6",
-  surface: "#FFFFFF",
-  glass: "rgba(255,255,255,0.72)",
-  glassBorder: "rgba(255,255,255,0.35)",
-  teal: "#2D9B83",
-  tealDeep: "#1E7A66",
-  tealSoft: "#E8F5F1",
-  tealGlow: "rgba(45,155,131,0.15)",
-  gold: "#C4A265",
-  goldSoft: "#FBF6ED",
-  text: "#1A1814",
-  textSoft: "#5C564E",
-  textMuted: "#9B948C",
-  rose: "#C75B7A",
-  roseSoft: "#FDF2F5",
-  blue: "#4A7FB5",
-  blueSoft: "#EFF5FB",
-  purple: "#7B6BAA",
-  purpleSoft: "#F3F0FA",
-  amber: "#D4943A",
-  amberSoft: "#FDF8EE",
-  red: "#D45B5B",
-  redSoft: "#FEF2F2",
-  shadow: "0 8px 40px rgba(26,24,20,0.06)",
-  shadowLg: "0 16px 64px rgba(26,24,20,0.1)",
-  shadowGlow: "0 0 40px rgba(45,155,131,0.2)",
+  bg:"#FAF8F5",bgDeep:"#F0ECE6",surface:"#FFFFFF",glass:"rgba(255,255,255,0.72)",glassBorder:"rgba(255,255,255,0.35)",
+  teal:"#2D9B83",tealDeep:"#1E7A66",tealSoft:"#E8F5F1",tealGlow:"rgba(45,155,131,0.15)",
+  gold:"#C4A265",goldSoft:"#FBF6ED",text:"#1A1814",textSoft:"#5C564E",textMuted:"#9B948C",
+  rose:"#C75B7A",roseSoft:"#FDF2F5",blue:"#4A7FB5",blueSoft:"#EFF5FB",
+  purple:"#7B6BAA",purpleSoft:"#F3F0FA",amber:"#D4943A",amberSoft:"#FDF8EE",
+  red:"#D45B5B",redSoft:"#FEF2F2",
+  shadow:"0 8px 40px rgba(26,24,20,0.06)",shadowLg:"0 16px 64px rgba(26,24,20,0.1)",shadowGlow:"0 0 40px rgba(45,155,131,0.2)",
 };
+const fonts = { display:"'Fraunces', Georgia, serif", body:"'DM Sans', -apple-system, sans-serif" };
 
-const fonts = {
-  display: "'Fraunces', Georgia, serif",
-  body: "'DM Sans', -apple-system, sans-serif",
-};
-
-// ═══ AWS POLLY VOICE — Warda's real voice ═══
 function useWardaVoice() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef(null);
-  const speakWithPolly = useCallback(async (b64, onEnd) => {
+  const speakPolly = useCallback(async (b64, onEnd) => {
     try {
-      const bytes = atob(b64);
-      const ab = new ArrayBuffer(bytes.length);
-      const view = new Uint8Array(ab);
-      for (let i = 0; i < bytes.length; i++) view[i] = bytes.charCodeAt(i);
-      const blob = new Blob([ab], { type: "audio/mpeg" });
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
+      const bytes = atob(b64); const ab = new ArrayBuffer(bytes.length); const v = new Uint8Array(ab);
+      for (let i = 0; i < bytes.length; i++) v[i] = bytes.charCodeAt(i);
+      const audio = new Audio(URL.createObjectURL(new Blob([ab], { type: "audio/mpeg" })));
       audioRef.current = audio;
       audio.onplay = () => setIsSpeaking(true);
-      audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); onEnd?.(); };
-      audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); onEnd?.(); };
+      audio.onended = () => { setIsSpeaking(false); onEnd?.(); };
+      audio.onerror = () => { setIsSpeaking(false); onEnd?.(); };
       await audio.play();
     } catch { setIsSpeaking(false); onEnd?.(); }
   }, []);
   const speakBrowser = useCallback((text, onEnd) => {
     if (!window.speechSynthesis) { onEnd?.(); return; }
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.9; u.pitch = 1.05;
+    const u = new SpeechSynthesisUtterance(text); u.rate = 0.9; u.pitch = 1.05;
     const voices = window.speechSynthesis.getVoices();
     const pref = voices.find(v => v.lang.includes("en-GB") && v.name.toLowerCase().includes("female")) || voices.find(v => v.lang.includes("en-GB")) || voices[0];
     if (pref) u.voice = pref;
-    u.onstart = () => setIsSpeaking(true);
-    u.onend = () => { setIsSpeaking(false); onEnd?.(); };
-    u.onerror = () => { setIsSpeaking(false); onEnd?.(); };
+    u.onstart = () => setIsSpeaking(true); u.onend = () => { setIsSpeaking(false); onEnd?.(); }; u.onerror = () => { setIsSpeaking(false); onEnd?.(); };
     window.speechSynthesis.speak(u);
   }, []);
-  const speak = useCallback(async (text, b64, onEnd) => {
-    if (b64) await speakWithPolly(b64, onEnd);
-    else speakBrowser(text, onEnd);
-  }, [speakWithPolly, speakBrowser]);
-  const stop = useCallback(() => {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-    window.speechSynthesis?.cancel();
-    setIsSpeaking(false);
-  }, []);
+  const speak = useCallback(async (text, b64, onEnd) => { if (b64) await speakPolly(b64, onEnd); else speakBrowser(text, onEnd); }, [speakPolly, speakBrowser]);
+  const stop = useCallback(() => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } window.speechSynthesis?.cancel(); setIsSpeaking(false); }, []);
   return { speak, stop, isSpeaking };
 }
 
-// ═══ SPEECH RECOGNITION ═══
 function useVoiceInput() {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const ref = useRef(null);
   const startListening = useCallback(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-    const r = new SR();
-    r.lang = "en-GB"; r.continuous = false; r.interimResults = true;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) return;
+    const r = new SR(); r.lang = "en-GB"; r.continuous = false; r.interimResults = true;
     r.onstart = () => setIsListening(true);
     r.onresult = (e) => setTranscript(Array.from(e.results).map(x => x[0].transcript).join(""));
-    r.onend = () => setIsListening(false);
-    r.onerror = () => setIsListening(false);
+    r.onend = () => setIsListening(false); r.onerror = () => setIsListening(false);
     ref.current = r; r.start();
   }, []);
   const stopListening = useCallback(() => { ref.current?.stop(); setIsListening(false); }, []);
   return { startListening, stopListening, isListening, transcript, setTranscript };
 }
 
-// ═══ LOCAL FALLBACK RESPONSES ═══
+function useTimeGreeting(name) {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => { const i = setInterval(() => setTime(new Date()), 30000); return () => clearInterval(i); }, []);
+  const h = time.getHours();
+  const timeStr = time.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = time.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const isNightAuto = h >= 22 || h < 6;
+  return { time, timeStr, dateStr, isNightAuto };
+}
+
 function getLocalResponse(text, name) {
   const l = text.toLowerCase();
   if (l.includes("hello") || l.includes("hi")) return "Hello, " + name + "! It's lovely to hear from you.";
@@ -135,10 +99,10 @@ function getLocalResponse(text, name) {
 }
 
 // Animated rose SVG component
-const WardaRose = ({ size = 120, glow = false }) => (
+const WardaRose = ({ size = 120, glow = false, speaking = false }) => (
   <div style={{ position: "relative", width: size, height: size }}>
     {glow && <div style={{ position: "absolute", inset: -20, borderRadius: "50%", background: `radial-gradient(circle, ${P.tealGlow}, transparent 70%)`, animation: "pulse 3s ease-in-out infinite" }} />}
-    <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: "drop-shadow(0 4px 12px rgba(45,155,131,0.25))" }}>
+    <svg viewBox="0 0 100 100" width={size} height={size} style={{ filter: "drop-shadow(0 4px 12px rgba(45,155,131,0.25))", animation: speaking ? "breathe 1.5s ease-in-out infinite" : "none" }}>
       <defs>
         <radialGradient id="roseGrad" cx="50%" cy="40%" r="50%">
           <stop offset="0%" stopColor="#3DB89A" />
@@ -239,9 +203,19 @@ const LanguagePill = ({ lang, isActive, onClick, nativeName }) => (
   }}>{nativeName || lang}</div>
 );
 
+const ThinkingDots = () => (
+  <div style={{display:"flex",justifyContent:"flex-start",padding:"4px 0"}}>
+    <div style={{background:P.surface,padding:"16px 22px",borderRadius:"22px 22px 22px 6px",boxShadow:P.shadow,display:"flex",gap:6,alignItems:"center"}}>
+      <div style={{fontSize:11,fontWeight:700,color:P.teal,marginRight:8,letterSpacing:0.5,textTransform:"uppercase"}}>Warda \u{1f339}</div>
+      {[0,0.15,0.3].map((d,i) => <div key={i} style={{width:8,height:8,borderRadius:4,background:P.teal,animation:"bounce 1s ease-in-out infinite "+d+"s"}}/>)}
+    </div>
+  </div>
+);
+
 const nativeNames = { English: "English", Arabic: "العربية", French: "Français", Spanish: "Español", Urdu: "اردو", Hindi: "हिन्दी", Welsh: "Cymraeg", "Scottish Gaelic": "Gàidhlig" };
 
 // Main App
+
 export default function WardaApp() {
   const [screen, setScreen] = useState("home");
   const [lang, setLang] = useState("English");
@@ -252,39 +226,35 @@ export default function WardaApp() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [resident, setResident] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingMessages, setPendingMessages] = useState([]);
   const [hasGreeted, setHasGreeted] = useState(false);
   const chatEndRef = useRef(null);
 
-  // API hooks
   const { speak, stop: stopSpeaking, isSpeaking } = useWardaVoice();
   const { startListening, stopListening, isListening, transcript, setTranscript } = useVoiceInput();
+  const { timeStr, dateStr, isNightAuto } = useTimeGreeting("Friend");
 
   const t = LANGUAGES[lang] || LANGUAGES.English;
   const dir = t.dir;
   const residentName = resident?.preferredName || resident?.firstName || "Friend";
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const dateStr = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const nightBg = "linear-gradient(180deg, #1A1D2E 0%, #0D0F1A 100%)";
 
-  useEffect(() => { const h = new Date().getHours(); if (h >= 22 || h < 6) setIsNight(true); }, []);
+  useEffect(() => { if (isNightAuto) setIsNight(true); }, [isNightAuto]);
   useEffect(() => { if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  // ═══ LOAD RESIDENT FROM API ═══
+  // ═══ 1. LOAD RESIDENT ═══
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch(API_BASE + "/api/admin/residents/" + TABLET_CONFIG.residentId);
-        if (res.ok) {
-          const d = await res.json(); const r = d.resident || d;
-          setResident({ id: TABLET_CONFIG.residentId, firstName: r.firstName || "Friend", preferredName: r.preferredName || r.firstName || "Friend", isActive: r.isActive !== false });
-        } else { setResident({ id: TABLET_CONFIG.residentId, firstName: "Friend", preferredName: "Friend", isActive: true }); }
+        if (res.ok) { const d = await res.json(); const r = d.resident || d; setResident({ id: TABLET_CONFIG.residentId, firstName: r.firstName||"Friend", preferredName: r.preferredName||r.firstName||"Friend", isActive: r.isActive !== false }); }
+        else setResident({ id: TABLET_CONFIG.residentId, firstName: "Friend", preferredName: "Friend", isActive: true });
       } catch { setResident({ id: TABLET_CONFIG.residentId, firstName: "Friend", preferredName: "Friend", isActive: true }); }
       setIsLoading(false);
     })();
   }, []);
 
-  // ═══ INITIAL GREETING WITH POLLY ═══
+  // ═══ 2. GREETING ON LOAD ═══
   useEffect(() => {
     if (!hasGreeted && resident && screen === "home") {
       const timer = setTimeout(async () => {
@@ -301,10 +271,17 @@ export default function WardaApp() {
     }
   }, [hasGreeted, resident, residentName, speak, screen]);
 
-  // ═══ VOICE: transcript → send ═══
+  // ═══ 3. POST OFFICE ═══
+  useEffect(() => {
+    if (!resident) return;
+    const f = async () => { try { const r = await fetch(API_BASE + "/api/family-comms/pending/" + resident.id); if (r.ok) { const d = await r.json(); if (d.success) setPendingMessages(d.messages || []); } } catch {} };
+    f(); const i = setInterval(f, 30000); return () => clearInterval(i);
+  }, [resident]);
+
+  // ═══ 4. VOICE TRANSCRIPT ═══
   useEffect(() => { if (!isListening && transcript && transcript.trim().length > 0) { handleSendMessage(transcript.trim()); setTranscript(""); } }, [isListening]);
 
-  // ═══ SEND MESSAGE — Claude AI via /api/voice/command ═══
+  // ═══ 5. SEND MESSAGE ═══
   const handleSendMessage = async (text) => {
     if (!text.trim() || isProcessing || !resident) return;
     setMessages(prev => [...prev, { id: Date.now(), text, isWarda: false }]);
@@ -317,11 +294,15 @@ export default function WardaApp() {
     if (!wt) { try { const r = await fetch(API_BASE + "/api/conversation/message", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: resident.id, message: text }) }); if (r.ok) { const d = await r.json(); if (d.success && d.response) wt = d.response.text; } } catch {} }
     if (!wt) wt = getLocalResponse(text, residentName);
     setMessages(prev => [...prev, { id: Date.now() + 1, text: wt, isWarda: true }]);
-    speak(wt, wa, () => {});
-    setIsProcessing(false);
+    speak(wt, wa, () => {}); setIsProcessing(false);
   };
 
-  // ═══ START CHAT with API greeting ═══
+  // ═══ 6. HELP ═══
+  const handleHelp = async () => {
+    try { await fetch(API_BASE + "/api/alerts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: resident?.id, type: "HELP", severity: "high", message: residentName + " pressed the Help button" }) }); } catch {}
+    speak("I'm getting help for you right now, dear. Don't worry.", null, () => {});
+  };
+
   const startChat = async (mode) => {
     setScreen("chat"); setMessages([]);
     let gt, ga;
@@ -336,22 +317,18 @@ export default function WardaApp() {
     if (mode === "voice") setTimeout(() => startListening(), 1500);
   };
 
-  const handleMicToggle = () => {
-    if (isSpeaking) { stopSpeaking(); return; }
-    if (isListening) { stopListening(); return; }
-    startListening();
-  };
-
-  const sendMessage = () => { if (inputText.trim()) handleSendMessage(inputText.trim()); };
+  const handleMicToggle = () => { if (isSpeaking) { stopSpeaking(); return; } if (isListening) { stopListening(); return; } startListening(); };
+  const sendMsg = () => { if (inputText.trim()) handleSendMessage(inputText.trim()); };
 
   const features = [
-    { id: "family", icon: "👨‍👩‍👧", label: t.family, color: P.blue, colorSoft: P.blueSoft, badge: 2 },
-    { id: "music", icon: "🎵", label: t.music, color: P.purple, colorSoft: P.purpleSoft },
-    { id: "photos", icon: "📷", label: t.photos, color: P.amber, colorSoft: P.amberSoft },
-    { id: "faith", icon: "🙏", label: t.faith, color: P.gold, colorSoft: P.goldSoft },
-    { id: "myday", icon: "📅", label: t.myDay, color: P.teal, colorSoft: P.tealSoft },
-    { id: "sendlove", icon: "💌", label: t.sendLove, color: P.rose, colorSoft: P.roseSoft },
+    { id: "family", icon: "\u{1f468}\u200d\u{1f469}\u200d\u{1f467}", label: t.family, color: P.blue, colorSoft: P.blueSoft, badge: pendingMessages.length },
+    { id: "music", icon: "\u{1f3b5}", label: t.music, color: P.purple, colorSoft: P.purpleSoft },
+    { id: "photos", icon: "\u{1f4f7}", label: t.photos, color: P.amber, colorSoft: P.amberSoft },
+    { id: "faith", icon: "\u{1f64f}", label: t.faith, color: P.gold, colorSoft: P.goldSoft },
+    { id: "myday", icon: "\u{1f4c5}", label: t.myDay, color: P.teal, colorSoft: P.tealSoft },
+    { id: "sendlove", icon: "\u{1f48c}", label: t.sendLove, color: P.rose, colorSoft: P.roseSoft },
   ];
+
 
   // ═══ STYLES ═══
   const globalStyle = `
@@ -361,6 +338,7 @@ export default function WardaApp() {
     @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes breathe { 0%,100% { box-shadow: 0 0 30px rgba(45,155,131,0.15); } 50% { box-shadow: 0 0 50px rgba(45,155,131,0.35); } }
     @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
     @keyframes micPulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(45,155,131,0.4); } 50% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(45,155,131,0); } }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-user-select: none; user-select: none; }
     input, textarea { -webkit-user-select: text; user-select: text; }
@@ -381,8 +359,17 @@ export default function WardaApp() {
     );
   }
 
+  // ═══ LOADING ═══
+  if (isLoading) return (
+    <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(170deg,"+P.bg+","+P.bgDeep+")",fontFamily:fonts.body}}>
+      <style>{globalStyle}</style>
+      <div style={{textAlign:"center"}}><div style={{animation:"pulse 2s ease-in-out infinite"}}><WardaRose size={100} glow/></div><p style={{marginTop:16,fontSize:18,color:P.teal,fontFamily:fonts.display,fontStyle:"italic"}}>Warda is waking up...</p></div>
+    </div>
+  );
+
   // ═══ HOME SCREEN ═══
   if (screen === "home") {
+    const poText = pendingMessages.length > 0 ? pendingMessages.length + " message" + (pendingMessages.length > 1 ? "s" : "") + " from your family!" : t.postOfficeEmpty;
     return (
       <div style={{
         minHeight: "100vh",
@@ -456,7 +443,7 @@ export default function WardaApp() {
           
           {/* Warda Rose */}
           <div style={{ animation: "float 4s ease-in-out infinite", marginBottom: 6 }}>
-            <WardaRose size={110} glow />
+            <WardaRose size={110} glow speaking={isSpeaking} />
           </div>
 
           {/* Greeting */}
@@ -499,15 +486,15 @@ export default function WardaApp() {
               <div style={{ fontSize: 15, fontWeight: 700, fontFamily: fonts.display, color: isNight ? "#E8E0D8" : P.text }}>
                 {t.postOffice}
               </div>
-              <div style={{ fontSize: 13, color: isNight ? "rgba(232,224,216,0.45)" : P.textMuted, marginTop: 3 }}>
-                {t.postOfficeEmpty}
+              <div style={{ fontSize: 13, color: pendingMessages.length > 0 ? P.teal : (isNight ? "rgba(232,224,216,0.45)" : P.textMuted), marginTop: 3, fontWeight: pendingMessages.length > 0 ? 600 : 400 }}>
+                {poText}
               </div>
             </div>
             <div style={{ fontSize: 20, color: P.teal, opacity: 0.5 }}>→</div>
           </div>
 
           {/* Help Button */}
-          <div style={{
+          <div onClick={handleHelp} style={{
             margin: "16px 28px 0", padding: "14px 24px", borderRadius: 18, maxWidth: 600, width: "calc(100% - 56px)",
             background: P.redSoft, border: `2px solid ${P.red}22`, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
@@ -548,7 +535,7 @@ export default function WardaApp() {
           backdropFilter: "blur(20px)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div onClick={() => { setScreen("home"); setMessages([]); setIsListening(false); }} style={{
+            <div onClick={() => { setScreen("home"); setMessages([]); stopSpeaking(); stopListening(); }} style={{
               width: 42, height: 42, borderRadius: 21, cursor: "pointer",
               background: isNight ? "rgba(255,255,255,0.06)" : P.bgDeep,
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -591,6 +578,7 @@ export default function WardaApp() {
         {/* Messages */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 8 }}>
           {messages.map(m => <ChatBubble key={m.id} text={m.text} isWarda={m.isWarda} dir={dir} />)}
+          {isProcessing && <ThinkingDots />}
           <div ref={chatEndRef} />
         </div>
 
@@ -623,7 +611,7 @@ export default function WardaApp() {
               <input
                 value={inputText}
                 onChange={e => setInputText(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && sendMessage()}
+                onKeyDown={e => e.key === "Enter" && sendMsg()}
                 placeholder={isListening ? "Listening..." : `${t.typeToWarda}...`}
                 style={{
                   flex: 1, border: "none", outline: "none", background: "transparent",
@@ -631,7 +619,7 @@ export default function WardaApp() {
                   direction: dir,
                 }}
               />
-              <div onClick={sendMessage} style={{
+              <div onClick={sendMsg} style={{
                 width: 44, height: 44, borderRadius: 22, cursor: "pointer",
                 background: inputText.trim() ? `linear-gradient(135deg, ${P.teal}, ${P.tealDeep})` : (isNight ? "rgba(255,255,255,0.04)" : P.bgDeep),
                 display: "flex", alignItems: "center", justifyContent: "center",
