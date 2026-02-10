@@ -206,7 +206,7 @@ const LanguagePill = ({ lang, isActive, onClick, nativeName }) => (
 const ThinkingDots = () => (
   <div style={{display:"flex",justifyContent:"flex-start",padding:"4px 0"}}>
     <div style={{background:P.surface,padding:"16px 22px",borderRadius:"22px 22px 22px 6px",boxShadow:P.shadow,display:"flex",gap:6,alignItems:"center"}}>
-      <div style={{fontSize:11,fontWeight:700,color:P.teal,marginRight:8,letterSpacing:0.5,textTransform:"uppercase"}}>Warda \u{1f339}</div>
+      <div style={{fontSize:11,fontWeight:700,color:P.teal,marginRight:8,letterSpacing:0.5,textTransform:"uppercase"}}>Warda 🌹</div>
       {[0,0.15,0.3].map((d,i) => <div key={i} style={{width:8,height:8,borderRadius:4,background:P.teal,animation:"bounce 1s ease-in-out infinite "+d+"s"}}/>)}
     </div>
   </div>
@@ -321,12 +321,12 @@ export default function WardaApp() {
   const sendMsg = () => { if (inputText.trim()) handleSendMessage(inputText.trim()); };
 
   const features = [
-    { id: "family", icon: "\u{1f468}\u200d\u{1f469}\u200d\u{1f467}", label: t.family, color: P.blue, colorSoft: P.blueSoft, badge: pendingMessages.length },
-    { id: "music", icon: "\u{1f3b5}", label: t.music, color: P.purple, colorSoft: P.purpleSoft },
-    { id: "photos", icon: "\u{1f4f7}", label: t.photos, color: P.amber, colorSoft: P.amberSoft },
-    { id: "faith", icon: "\u{1f64f}", label: t.faith, color: P.gold, colorSoft: P.goldSoft },
-    { id: "myday", icon: "\u{1f4c5}", label: t.myDay, color: P.teal, colorSoft: P.tealSoft },
-    { id: "sendlove", icon: "\u{1f48c}", label: t.sendLove, color: P.rose, colorSoft: P.roseSoft },
+    { id: "family", icon: "👨\u200d👩\u200d👧", label: t.family, color: P.blue, colorSoft: P.blueSoft, badge: pendingMessages.length },
+    { id: "music", icon: "🎵", label: t.music, color: P.purple, colorSoft: P.purpleSoft },
+    { id: "photos", icon: "📷", label: t.photos, color: P.amber, colorSoft: P.amberSoft },
+    { id: "faith", icon: "🙏", label: t.faith, color: P.gold, colorSoft: P.goldSoft },
+    { id: "myday", icon: "📅", label: t.myDay, color: P.teal, colorSoft: P.tealSoft },
+    { id: "sendlove", icon: "💌", label: t.sendLove, color: P.rose, colorSoft: P.roseSoft },
   ];
 
 
