@@ -27,17 +27,25 @@ if (setupCode) {
 
 // ─── Design Tokens ────────────────────────────────────────────────────
 const P = {
-  bg: '#F5F0EB', bgWarm: '#EDE7E0',
-  surface: '#FFFFFF', surfaceGlass: 'rgba(255,255,255,0.82)',
-  teal: '#3D8B7A', tealDeep: '#2D6B5E', tealLight: '#E6F2EF',
-  tealMist: '#D0E8E2', tealGlow: 'rgba(61,139,122,0.12)',
-  text: '#2C2824', textSoft: '#6B635B', textMuted: '#9B948C', textLight: '#C4BDB5',
+  bg: '#FAF8F5', bgWarm: '#F0ECE6', bgDeep: '#F0ECE6',
+  surface: '#FFFFFF', surfaceGlass: 'rgba(255,255,255,0.72)',
+  glassBorder: 'rgba(255,255,255,0.35)',
+  teal: '#2D9B83', tealDeep: '#1E7A66', tealLight: '#E8F5F1',
+  tealMist: '#D0E8E2', tealGlow: 'rgba(45,155,131,0.15)',
+  tealSoft: '#E8F5F1',
+  text: '#1A1814', textSoft: '#5C564E', textMuted: '#9B948C', textLight: '#C4BDB5',
   recipeOrange: '#E07A3A', voicePink: '#D46B9D',
   helpRed: '#D45B5B', helpRedBg: '#FEF2F2', helpRedBorder: '#FECACA',
-  familyBlue: '#5B89B4', musicPurple: '#8B6BB5', photoAmber: '#B89B5B',
+  familyBlue: '#4A7FB5', musicPurple: '#7B6BAA', photoAmber: '#D4943A',
   faithGold: '#C4A265', daySlate: '#6B8B8B',
-  shadow: '0 4px 20px rgba(44,40,36,0.07)',
-  shadowMd: '0 6px 28px rgba(44,40,36,0.1)',
+  blue: '#4A7FB5', blueSoft: '#EFF5FB',
+  purple: '#7B6BAA', purpleSoft: '#F3F0FA',
+  amber: '#D4943A', amberSoft: '#FDF8EE',
+  gold: '#C4A265', goldSoft: '#FBF6ED',
+  rose: '#C75B7A', roseSoft: '#FDF2F5',
+  shadow: '0 8px 40px rgba(26,24,20,0.06)',
+  shadowMd: '0 16px 64px rgba(26,24,20,0.1)',
+  shadowGlow: '0 0 40px rgba(45,155,131,0.2)',
 };
 
 const fonts = {
@@ -45,14 +53,30 @@ const fonts = {
   body: "'DM Sans', 'Nunito', -apple-system, sans-serif",
 };
 
+// Multi-language labels for UI
+const LANG_LABELS: Record<string, Record<string, string>> = {
+  English: { family:'Family', music:'Music', photos:'Photos', faith:'My Faith', myday:'My Day', recipes:'Recipes', voicemsg:'Send Love', talk:'Talk to Warda', type:'Type to Warda', help:'I Need Help', post:'Your Post Office', nopost:'No post today — but your family is thinking of you', haspost:'letters in your Post Office!' },
+  Arabic: { family:'العائلة', music:'الموسيقى', photos:'الصور', faith:'إيماني', myday:'يومي', recipes:'الوصفات', voicemsg:'أرسل حب', talk:'تحدث إلى وردة', type:'اكتب لوردة', help:'أحتاج مساعدة', post:'مكتب البريد', nopost:'لا بريد اليوم — لكن عائلتك تفكر فيك', haspost:'رسائل في مكتب بريدك!' },
+  French: { family:'Famille', music:'Musique', photos:'Photos', faith:'Ma Foi', myday:'Ma Journée', recipes:'Recettes', voicemsg:'Envoyer', talk:'Parler à Warda', type:'Écrire à Warda', help:"J'ai besoin d'aide", post:'Votre Bureau de Poste', nopost:"Pas de courrier aujourd'hui — mais votre famille pense à vous", haspost:'lettres dans votre boîte!' },
+  Spanish: { family:'Familia', music:'Música', photos:'Fotos', faith:'Mi Fe', myday:'Mi Día', recipes:'Recetas', voicemsg:'Enviar', talk:'Hablar con Warda', type:'Escribir a Warda', help:'Necesito ayuda', post:'Tu Oficina de Correos', nopost:'Sin correo hoy — pero tu familia piensa en ti', haspost:'cartas en tu correo!' },
+  Urdu: { family:'خاندان', music:'موسیقی', photos:'تصاویر', faith:'میرا ایمان', myday:'میرا دن', recipes:'ترکیبیں', voicemsg:'محبت بھیجیں', talk:'وردہ سے بات کریں', type:'وردہ کو لکھیں', help:'مجھے مدد چاہیے', post:'آپ کا ڈاک خانہ', nopost:'آج کوئی ڈاک نہیں — لیکن آپ کا خاندان آپ کے بارے میں سوچ رہا ہے', haspost:'خطوط آپ کے ڈاک خانے میں!' },
+  Hindi: { family:'परिवार', music:'संगीत', photos:'तस्वीरें', faith:'मेरा विश्वास', myday:'मेरा दिन', recipes:'व्यंजन', voicemsg:'प्यार भेजें', talk:'वर्दा से बात करें', type:'वर्दा को लिखें', help:'मुझे मदद चाहिए', post:'आपका डाकघर', nopost:'आज कोई डाक नहीं — लेकिन आपका परिवार आपके बारे में सोच रहा है', haspost:'पत्र आपके डाकघर में!' },
+  Welsh: { family:'Teulu', music:'Cerddoriaeth', photos:'Lluniau', faith:'Fy Ffydd', myday:'Fy Niwrnod', recipes:'Ryseitiau', voicemsg:'Anfon', talk:'Siarad â Warda', type:'Teipio i Warda', help:'Angen cymorth', post:'Eich Swyddfa Bost', nopost:"Dim post heddiw — ond mae'ch teulu'n meddwl amdanoch", haspost:'llythyrau yn eich post!' },
+  'Scottish Gaelic': { family:'Teaghlach', music:'Ceòl', photos:'Dealbhan', faith:'Mo Chreideamh', myday:'Mo Latha', recipes:'Reasabaidhean', voicemsg:'Cuir gaol', talk:'Bruidhinn ri Warda', type:'Sgrìobh gu Warda', help:'Cuideachadh', post:'An Oifis Puist agad', nopost:'Gun phost an-diugh — ach tha do theaghlach a smaoineachadh ort', haspost:'litrichean san oifis puist agad!' },
+};
+const getLang = (profile: any) => profile?.languagePreference || 'English';
+const getLabels = (lang: string) => LANG_LABELS[lang] || LANG_LABELS['English'];
+const LANG_NATIVE: Record<string, string> = { English:'English', Arabic:'العربية', French:'Français', Spanish:'Español', Urdu:'اردو', Hindi:'हिन्दी', Welsh:'Cymraeg', 'Scottish Gaelic':'Gàidhlig' };
+const RTL_LANGS = ['Arabic', 'Urdu'];
+
 const ALL_FEATURES = [
-  { id: 'family', label: 'Family', icon: '👨‍👩‍👧', color: P.familyBlue, badge: 0 },
-  { id: 'music',  label: 'Music',  icon: '🎵',    color: P.musicPurple },
-  { id: 'photos', label: 'Photos', icon: '📷',    color: P.photoAmber },
-  { id: 'faith',  label: 'My Faith', icon: '🙏',  color: P.faithGold },
-  { id: 'myday',  label: 'My Day',   icon: '📅',  color: P.daySlate },
-  { id: 'recipes', label: 'Recipes', icon: '🍳', color: P.recipeOrange },
-  { id: 'voicemsg', label: 'Send Love', icon: '💌', color: P.voicePink },
+  { id: 'family', label: 'Family', icon: '👨‍👩‍👧', color: P.familyBlue, colorSoft: P.blueSoft || '#EFF5FB', badge: 0 },
+  { id: 'music',  label: 'Music',  icon: '🎵',    color: P.musicPurple, colorSoft: P.purpleSoft || '#F3F0FA' },
+  { id: 'photos', label: 'Photos', icon: '📷',    color: P.photoAmber, colorSoft: P.amberSoft || '#FDF8EE' },
+  { id: 'faith',  label: 'My Faith', icon: '🙏',  color: P.faithGold, colorSoft: P.goldSoft || '#FBF6ED' },
+  { id: 'myday',  label: 'My Day',   icon: '📅',  color: P.daySlate, colorSoft: P.tealSoft || '#E8F5F1' },
+  { id: 'recipes', label: 'Recipes', icon: '🍳', color: P.recipeOrange, colorSoft: P.roseSoft || '#FDF2F5' },
+  { id: 'voicemsg', label: 'Send Love', icon: '💌', color: P.voicePink, colorSoft: '#FDF2F8' },
 ];
 
 
@@ -1840,13 +1864,12 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
             <div>
               <div style={{
-                fontSize: 14, fontWeight: 600, textAlign: 'right' as const,
-                color: isNight ? 'rgba(232,224,216,0.6)' : P.textSoft,
-              }}>{resident?.careHomeName || 'Care Home'}</div>
-              <div style={{
-                fontSize: 12, color: isNight ? 'rgba(232,224,216,0.35)' : P.textMuted,
-                marginTop: 1, textAlign: 'right' as const,
-              }}>Room {resident?.roomNumber || ''}</div>
+                fontSize: 12, fontWeight: 600, color: isNight ? 'rgba(232,224,216,0.6)' : P.teal,
+                padding: '6px 14px', borderRadius: 16, cursor: 'pointer',
+                background: isNight ? 'rgba(255,255,255,0.08)' : P.surfaceGlass,
+                backdropFilter: 'blur(12px)',
+                border: '1px solid ' + (isNight ? 'rgba(255,255,255,0.1)' : P.glassBorder || 'rgba(255,255,255,0.35)'),
+              }}>🌍 {LANG_NATIVE[getLang(resident?.profile)] || 'English'}</div>
             </div>
             <HelpButton />
           </div>
@@ -1914,9 +1937,28 @@ export default function App() {
             ))}
           </div>
 
-          {/* Suggestion */}
+          {/* 💌 Post Office */}
           <div style={{ padding: '0 28px', width: '100%', display: 'flex', justifyContent: 'center', marginTop: 20 }}>
-            <SuggestionCard suggestion={suggestion} isNight={isNight} />
+            <div onClick={() => { setActiveFeature('family'); setMode('feature'); }} style={{
+              padding: '20px 24px', borderRadius: 22, width: '100%', maxWidth: 600,
+              background: isNight ? 'rgba(255,255,255,0.04)' : P.surfaceGlass,
+              backdropFilter: 'blur(20px)',
+              border: '1px solid ' + (isNight ? 'rgba(255,255,255,0.06)' : (P.glassBorder || 'rgba(255,255,255,0.35)')),
+              display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer',
+              boxShadow: P.shadow,
+              transition: 'transform 0.3s ease',
+            }}>
+              <div style={{ fontSize: 36 }}>{pendingFamilyMessages > 0 ? '💌' : '📭'}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, fontFamily: fonts.heading, color: isNight ? '#E8E0D8' : P.text }}>
+                  {pendingFamilyMessages > 0 ? (pendingFamilyMessages + ' ' + (getLabels(getLang(resident?.profile)).haspost || 'letters in your Post Office!')) : (getLabels(getLang(resident?.profile)).post || 'Your Post Office')}
+                </div>
+                <div style={{ fontSize: 13, color: isNight ? 'rgba(232,224,216,0.45)' : P.textMuted, marginTop: 3 }}>
+                  {pendingFamilyMessages > 0 ? 'Tap to read your post' : (getLabels(getLang(resident?.profile)).nopost || 'No post today — but your family is thinking of you')}
+                </div>
+              </div>
+              <div style={{ fontSize: 20, color: P.teal, opacity: 0.5 }}>→</div>
+            </div>
           </div>
 
           {/* Footer */}

@@ -59,6 +59,8 @@ export interface SocketState {
   updateWardaStatus: (status: string) => void;
   dismissMessage: () => void;
   dismissPhoto: () => void;
+  incomingCall: any;
+  dismissCall?: () => void;
   messageQueue: IncomingMessage[];
 }
 
