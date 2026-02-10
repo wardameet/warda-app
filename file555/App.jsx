@@ -313,14 +313,14 @@ export default function WardaApp() {
 
           {/* Greeting */}
           <h1 style={{
-            fontSize: 26, fontFamily: fonts.display, fontWeight: 300, fontStyle: "italic",
-            color: isNight ? "rgba(232,224,216,0.85)" : P.teal,
+            fontSize: 32, fontFamily: fonts.display, fontWeight: 500, fontStyle: "italic",
+            color: isNight ? "rgba(232,224,216,0.85)" : P.text,
             textAlign: "center", lineHeight: 1.3, margin: "0 0 4px",
             animation: "fadeUp 0.8s ease 0.2s both",
           }}>{t.hello}, {residentName}</h1>
           <p style={{
-            fontSize: 15, color: isNight ? "rgba(232,224,216,0.45)" : P.textMuted,
-            fontFamily: fonts.body, animation: "fadeUp 0.8s ease 0.4s both",
+            fontSize: 18, color: isNight ? "rgba(232,224,216,0.45)" : P.textSoft,
+            fontFamily: fonts.body, fontWeight: 500, animation: "fadeUp 0.8s ease 0.4s both",
           }}>{t.howAreYou}</p>
 
           {/* Action Buttons */}
