@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // ═══════════════════════════════════════════════════════════════
 // 🌹 WARDA TABLET PROTOTYPE — Premium Elderly Companion
 // Design Direction: Warm Luxury meets Gentle Technology
 // Inspired by: Calm app, Apple Health, Four Seasons hospitality
 // ═══════════════════════════════════════════════════════════════
+
+const API_BASE = "https://api.meetwarda.com";
+const TABLET_CONFIG = { residentId: "0bc59f43-44d4-4e50-bbd5-dafcad6f3bba" };
 
 const LANGUAGES = {
   English: { hello: "Hello", howAreYou: "How are you today?", talkTo: "Talk to Warda", typeToWarda: "Type to Warda", family: "Family", music: "Music", photos: "Photos", faith: "Spiritual", myDay: "My Day", activities: "Activities", sendLove: "Send Love", help: "I Need Help", settings: "Settings", postOffice: "Your Post Office", postOfficeEmpty: "No post today — but your family is thinking of you", dir: "ltr" },
@@ -52,6 +55,84 @@ const fonts = {
   display: "'Fraunces', Georgia, serif",
   body: "'DM Sans', -apple-system, sans-serif",
 };
+
+// ═══ AWS POLLY VOICE — Warda's real voice ═══
+function useWardaVoice() {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const audioRef = useRef(null);
+  const speakWithPolly = useCallback(async (b64, onEnd) => {
+    try {
+      const bytes = atob(b64);
+      const ab = new ArrayBuffer(bytes.length);
+      const view = new Uint8Array(ab);
+      for (let i = 0; i < bytes.length; i++) view[i] = bytes.charCodeAt(i);
+      const blob = new Blob([ab], { type: "audio/mpeg" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onplay = () => setIsSpeaking(true);
+      audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); onEnd?.(); };
+      audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); onEnd?.(); };
+      await audio.play();
+    } catch { setIsSpeaking(false); onEnd?.(); }
+  }, []);
+  const speakBrowser = useCallback((text, onEnd) => {
+    if (!window.speechSynthesis) { onEnd?.(); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.9; u.pitch = 1.05;
+    const voices = window.speechSynthesis.getVoices();
+    const pref = voices.find(v => v.lang.includes("en-GB") && v.name.toLowerCase().includes("female")) || voices.find(v => v.lang.includes("en-GB")) || voices[0];
+    if (pref) u.voice = pref;
+    u.onstart = () => setIsSpeaking(true);
+    u.onend = () => { setIsSpeaking(false); onEnd?.(); };
+    u.onerror = () => { setIsSpeaking(false); onEnd?.(); };
+    window.speechSynthesis.speak(u);
+  }, []);
+  const speak = useCallback(async (text, b64, onEnd) => {
+    if (b64) await speakWithPolly(b64, onEnd);
+    else speakBrowser(text, onEnd);
+  }, [speakWithPolly, speakBrowser]);
+  const stop = useCallback(() => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    window.speechSynthesis?.cancel();
+    setIsSpeaking(false);
+  }, []);
+  return { speak, stop, isSpeaking };
+}
+
+// ═══ SPEECH RECOGNITION ═══
+function useVoiceInput() {
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const ref = useRef(null);
+  const startListening = useCallback(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR();
+    r.lang = "en-GB"; r.continuous = false; r.interimResults = true;
+    r.onstart = () => setIsListening(true);
+    r.onresult = (e) => setTranscript(Array.from(e.results).map(x => x[0].transcript).join(""));
+    r.onend = () => setIsListening(false);
+    r.onerror = () => setIsListening(false);
+    ref.current = r; r.start();
+  }, []);
+  const stopListening = useCallback(() => { ref.current?.stop(); setIsListening(false); }, []);
+  return { startListening, stopListening, isListening, transcript, setTranscript };
+}
+
+// ═══ LOCAL FALLBACK RESPONSES ═══
+function getLocalResponse(text, name) {
+  const l = text.toLowerCase();
+  if (l.includes("hello") || l.includes("hi")) return "Hello, " + name + "! It's lovely to hear from you.";
+  if (l.includes("music")) return "Shall I put on some music for you, " + name + "?";
+  if (l.includes("family") || l.includes("sarah")) return "Your family is always thinking of you, " + name + ".";
+  if (l.includes("prayer") || l.includes("bible") || l.includes("quran")) return "Of course, dear. Let me help you with that.";
+  if (l.includes("tired") || l.includes("sleep")) return "You rest whenever you need to, " + name + ". I'll be right here.";
+  if (l.includes("sad") || l.includes("lonely")) return "I'm sorry you're feeling that way, " + name + ". I'm right here with you.";
+  if (l.includes("help")) return "I'm here to help, " + name + ". I'm letting the staff know right away.";
+  return "I'm here for you, " + name + ". What would you like to do?";
+}
 
 // Animated rose SVG component
 const WardaRose = ({ size = 120, glow = false }) => (
@@ -167,47 +248,101 @@ export default function WardaApp() {
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
-  const [isListening, setIsListening] = useState(false);
   const [isNight, setIsNight] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [resident, setResident] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasGreeted, setHasGreeted] = useState(false);
   const chatEndRef = useRef(null);
+
+  // API hooks
+  const { speak, stop: stopSpeaking, isSpeaking } = useWardaVoice();
+  const { startListening, stopListening, isListening, transcript, setTranscript } = useVoiceInput();
 
   const t = LANGUAGES[lang] || LANGUAGES.English;
   const dir = t.dir;
-  const residentName = "Hafsa";
+  const residentName = resident?.preferredName || resident?.firstName || "Friend";
   const now = new Date();
   const timeStr = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const dateStr = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-
   const nightBg = "linear-gradient(180deg, #1A1D2E 0%, #0D0F1A 100%)";
 
+  useEffect(() => { const h = new Date().getHours(); if (h >= 22 || h < 6) setIsNight(true); }, []);
+  useEffect(() => { if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  // ═══ LOAD RESIDENT FROM API ═══
   useEffect(() => {
-    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    (async () => {
+      try {
+        const res = await fetch(API_BASE + "/api/admin/residents/" + TABLET_CONFIG.residentId);
+        if (res.ok) {
+          const d = await res.json(); const r = d.resident || d;
+          setResident({ id: TABLET_CONFIG.residentId, firstName: r.firstName || "Friend", preferredName: r.preferredName || r.firstName || "Friend", isActive: r.isActive !== false });
+        } else { setResident({ id: TABLET_CONFIG.residentId, firstName: "Friend", preferredName: "Friend", isActive: true }); }
+      } catch { setResident({ id: TABLET_CONFIG.residentId, firstName: "Friend", preferredName: "Friend", isActive: true }); }
+      setIsLoading(false);
+    })();
+  }, []);
 
-  const startChat = (mode) => {
-    setScreen("chat");
-    setMessages([{ id: 1, text: `${t.hello} ${residentName}! ${t.howAreYou}`, isWarda: true }]);
-    if (mode === "voice") setIsListening(true);
+  // ═══ INITIAL GREETING WITH POLLY ═══
+  useEffect(() => {
+    if (!hasGreeted && resident && screen === "home") {
+      const timer = setTimeout(async () => {
+        let gt, ga;
+        try {
+          const r = await fetch(API_BASE + "/api/conversation/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: resident.id, residentName }) });
+          if (r.ok) { const d = await r.json(); gt = d.greeting; }
+          if (gt) { const ar = await fetch(API_BASE + "/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: gt }) }); if (ar.ok) { const ad = await ar.json(); if (ad.success) ga = ad.audio; } }
+        } catch {}
+        if (gt) speak(gt, ga, () => {});
+        setHasGreeted(true);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [hasGreeted, resident, residentName, speak, screen]);
+
+  // ═══ VOICE: transcript → send ═══
+  useEffect(() => { if (!isListening && transcript && transcript.trim().length > 0) { handleSendMessage(transcript.trim()); setTranscript(""); } }, [isListening]);
+
+  // ═══ SEND MESSAGE — Claude AI via /api/voice/command ═══
+  const handleSendMessage = async (text) => {
+    if (!text.trim() || isProcessing || !resident) return;
+    setMessages(prev => [...prev, { id: Date.now(), text, isWarda: false }]);
+    setInputText(""); setIsProcessing(true);
+    let wt, wa;
+    try {
+      const r = await fetch(API_BASE + "/api/voice/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: resident.id, message: text, context: { userId: resident.id } }) });
+      if (r.ok) { const d = await r.json(); if (d.success) { wt = d.text; wa = d.audio; } }
+    } catch {}
+    if (!wt) { try { const r = await fetch(API_BASE + "/api/conversation/message", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: resident.id, message: text }) }); if (r.ok) { const d = await r.json(); if (d.success && d.response) wt = d.response.text; } } catch {} }
+    if (!wt) wt = getLocalResponse(text, residentName);
+    setMessages(prev => [...prev, { id: Date.now() + 1, text: wt, isWarda: true }]);
+    speak(wt, wa, () => {});
+    setIsProcessing(false);
   };
 
-  const sendMessage = () => {
-    if (!inputText.trim()) return;
-    setMessages(prev => [...prev, { id: Date.now(), text: inputText, isWarda: false }]);
-    setInputText("");
-    setTimeout(() => {
-      const responses = {
-        English: "That sounds lovely, dear. Tell me more about your day.",
-        Arabic: "هذا جميل يا عزيزتي. أخبريني المزيد عن يومك.",
-        French: "C'est charmant, ma chère. Dites-moi plus sur votre journée.",
-        Spanish: "Eso suena encantador, querida. Cuéntame más sobre tu día.",
-        Urdu: "یہ بہت اچھا لگتا ہے۔ مجھے اپنے دن کے بارے میں مزید بتائیں۔",
-        Hindi: "यह बहुत अच्छा लगता है। मुझे अपने दिन के बारे में और बताइए।",
-        Welsh: "Mae hynny'n hyfryd, annwyl. Dywedwch fwy wrthyf am eich diwrnod.",
-        "Scottish Gaelic": "Tha sin snog, a ghràidh. Innis dhomh tuilleadh mu do latha.",
-      };
-      setMessages(prev => [...prev, { id: Date.now() + 1, text: responses[lang] || responses.English, isWarda: true }]);
-    }, 1200);
+  // ═══ START CHAT with API greeting ═══
+  const startChat = async (mode) => {
+    setScreen("chat"); setMessages([]);
+    let gt, ga;
+    try {
+      const r = await fetch(API_BASE + "/api/conversation/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: resident?.id, residentName }) });
+      if (r.ok) { const d = await r.json(); gt = d.greeting; }
+      if (gt) { const ar = await fetch(API_BASE + "/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: gt }) }); if (ar.ok) { const ad = await ar.json(); if (ad.success) ga = ad.audio; } }
+    } catch {}
+    if (!gt) gt = t.hello + ", " + residentName + "! " + t.howAreYou;
+    setMessages([{ id: 1, text: gt, isWarda: true }]);
+    speak(gt, ga, () => {});
+    if (mode === "voice") setTimeout(() => startListening(), 1500);
   };
+
+  const handleMicToggle = () => {
+    if (isSpeaking) { stopSpeaking(); return; }
+    if (isListening) { stopListening(); return; }
+    startListening();
+  };
+
+  const sendMessage = () => { if (inputText.trim()) handleSendMessage(inputText.trim()); };
 
   const features = [
     { id: "family", icon: "👨‍👩‍👧", label: t.family, color: P.blue, colorSoft: P.blueSoft, badge: 2 },
@@ -232,6 +367,19 @@ export default function WardaApp() {
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
   `;
+
+  // ═══ LOADING SCREEN ═══
+  if (isLoading) {
+    return (
+      <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(170deg, ${P.bg}, ${P.bgDeep})`, fontFamily: fonts.body }}>
+        <style>{globalStyle}</style>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ animation: "pulse 2s ease-in-out infinite" }}><WardaRose size={100} glow /></div>
+          <p style={{ marginTop: 16, fontSize: 18, color: P.teal, fontFamily: fonts.display, fontStyle: "italic" }}>Warda is waking up...</p>
+        </div>
+      </div>
+    );
+  }
 
   // ═══ HOME SCREEN ═══
   if (screen === "home") {
@@ -414,7 +562,9 @@ export default function WardaApp() {
             }}>🌹</div>
             <div>
               <div style={{ fontSize: 17, fontWeight: 700, fontFamily: fonts.display, color: isNight ? "#E8E0D8" : P.text }}>Warda</div>
-              <div style={{ fontSize: 12, color: P.teal, fontWeight: 600 }}>● Online · {nativeNames[lang]}</div>
+              <div style={{ fontSize: 12, color: P.teal, fontWeight: 600 }}>
+                {isSpeaking ? "♫ Speaking..." : isListening ? "● Listening..." : isProcessing ? "◌ Thinking..." : "● Online"}
+              </div>
             </div>
           </div>
           <div onClick={() => setShowLangPicker(!showLangPicker)} style={{
@@ -448,18 +598,25 @@ export default function WardaApp() {
         <div style={{
           padding: "16px 24px 24px", borderTop: `1px solid rgba(0,0,0,0.04)`,
           background: isNight ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.8)",
-          backdropFilter: "blur(20px)",
+          backdropFilter: "blur(20px)", position: "relative",
         }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {/* Show live transcript */}
+            {isListening && transcript && (
+              <div style={{ position: "absolute", top: -40, left: 24, right: 24, textAlign: "center", fontSize: 15, color: P.teal, fontWeight: 600, fontStyle: "italic" }}>
+                "{transcript}"
+              </div>
+            )}
             {/* Mic Button */}
-            <div onClick={() => setIsListening(!isListening)} style={{
+            <div onClick={handleMicToggle} style={{
               width: 56, height: 56, borderRadius: 28, cursor: "pointer",
-              background: isListening ? `linear-gradient(135deg, ${P.teal}, ${P.tealDeep})` : (isNight ? "rgba(255,255,255,0.06)" : P.tealSoft),
+              background: isListening ? P.red : isSpeaking ? P.amber : (isNight ? "rgba(255,255,255,0.06)" : P.tealSoft),
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 22, border: isListening ? "none" : `2px solid ${P.teal}33`,
               animation: isListening ? "micPulse 1.5s ease-in-out infinite" : "none",
               transition: "all 0.3s ease",
-            }}>{isListening ? "🔴" : "🎤"}</div>
+              boxShadow: isListening ? "0 0 20px rgba(212,91,91,0.3)" : "none",
+            }}>{isListening ? "⏹" : isSpeaking ? "⏸" : "🎤"}</div>
 
             {/* Text Input */}
             <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, padding: "6px 6px 6px 20px", borderRadius: 28, background: isNight ? "rgba(255,255,255,0.06)" : P.surface, border: `2px solid ${P.teal}22` }}>
