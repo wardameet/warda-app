@@ -86,7 +86,7 @@ const io = new Server(httpServer, {
 
 // Middleware
 app.use(helmet({
-  contentSecurityPolicy: false // Disable for development
+  contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } // Disable for development
 }));
 app.use(cors({
   origin: ['https://app.meetwarda.com', 'https://admin.meetwarda.com', 'https://staff.meetwarda.com', 'https://portal.meetwarda.com', 'https://family.meetwarda.com', 'https://gp.meetwarda.com', 'https://meetwarda.com', 'http://13.40.187.182:3000', 'http://13.40.187.182:3002', 'http://13.40.187.182:3003', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003'],
