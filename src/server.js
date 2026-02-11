@@ -25,6 +25,7 @@ const presenceRoutes = require('./routes/presence');
 
 // Photo Sharing
 const photoRoutes = require('./routes/photos');
+const carehomeRoutes = require('./routes/carehome');
 const analyticsRoutes = require('./routes/analytics');
 const pushRoutes = require('./routes/push');
 const tabletRoutes = require('./routes/tablets');
@@ -109,6 +110,7 @@ app.use('/api/voice', voiceRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/presence', presenceRoutes);
 app.use('/api/photos', photoRoutes);
+app.use('/api/carehome', carehomeRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/tablets', tabletRoutes);
