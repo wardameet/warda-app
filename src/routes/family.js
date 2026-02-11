@@ -468,3 +468,113 @@ router.get('/contacts/:residentId', async function(req, res) {
     res.status(500).json({ success: false, error: 'Failed to fetch contacts' });
   }
 });
+
+// ─── Mood Timeline (for family dashboard) ─────────────────────
+router.get('/mood-timeline', familyAuth, async function(req, res) {
+  try {
+    var residentId = req.family.residentId;
+    var days = parseInt(req.query.days) || 14;
+    
+    // Get conversations with mood data
+    var conversations = await prisma.conversation.findMany({
+      where: { userId: residentId, mood: { not: null } },
+      select: { mood: true, summary: true, startedAt: true, duration: true },
+      orderBy: { startedAt: 'desc' },
+      take: days * 3
+    });
+
+    // Get health logs
+    var healthLogs = await prisma.healthLog.findMany({
+      where: { userId: residentId },
+      orderBy: { createdAt: 'desc' },
+      take: days * 5
+    });
+
+    // Build daily mood data
+    var timeline = [];
+    var now = new Date();
+    
+    if (conversations.length > 0) {
+      // Real data - group by day
+      var dayMap = {};
+      conversations.forEach(function(c) {
+        var day = c.startedAt.toISOString().split('T')[0];
+        if (!dayMap[day]) dayMap[day] = { moods: [], summaries: [] };
+        var score = parseMoodScore(c.mood);
+        if (score) dayMap[day].moods.push(score);
+        if (c.summary) dayMap[day].summaries.push(c.summary);
+      });
+      for (var d in dayMap) {
+        var avg = dayMap[d].moods.reduce(function(a, b) { return a + b; }, 0) / dayMap[d].moods.length;
+        timeline.push({ date: d, score: Math.round(avg * 10) / 10, label: moodLabel(avg), conversations: dayMap[d].moods.length, highlight: dayMap[d].summaries[0] || null });
+      }
+    } else {
+      // Demo data for pilot presentation
+      for (var i = days - 1; i >= 0; i--) {
+        var date = new Date(now);
+        date.setDate(date.getDate() - i);
+        var dayStr = date.toISOString().split('T')[0];
+        var base = 7;
+        var variation = Math.sin(i * 0.8) * 1.5 + (Math.random() - 0.5) * 1;
+        var score = Math.max(3, Math.min(10, Math.round((base + variation) * 10) / 10));
+        var highlights = [
+          'Talked about her grandchildren with joy',
+          'Remembered baking msemen with her mother',
+          'Enjoyed listening to Oum Kalthoum',
+          'Shared memories of Essaouira coastline',
+          'Spoke about Youssef with warmth',
+          'Laughed about Omar learning to ride a bike',
+          'Felt peaceful after evening prayers',
+          'Enjoyed chatting about Scottish weather',
+          'Talked about Fatima calling from Casablanca',
+          'Reminisced about her bakery in Morocco',
+          'Was happy about Abid visiting on weekend',
+          'Enjoyed discussing her favourite TV show',
+          'Felt grateful for Yasmine drawing her a picture',
+          'Talked about trying new Scottish recipes'
+        ];
+        timeline.push({
+          date: dayStr,
+          score: score,
+          label: moodLabel(score),
+          conversations: Math.floor(Math.random() * 3) + 1,
+          highlight: highlights[i % highlights.length]
+        });
+      }
+    }
+
+    // Get activity feed (recent health logs + conversations)
+    var activities = [];
+    healthLogs.slice(0, 10).forEach(function(h) {
+      if (h.type !== 'PROACTIVE_INTERACTION') {
+        activities.push({ type: h.type, value: h.value, note: h.notes, time: h.createdAt });
+      }
+    });
+
+    res.json({
+      success: true,
+      timeline: timeline.sort(function(a, b) { return a.date.localeCompare(b.date); }),
+      activities: activities,
+      isDemo: conversations.length === 0
+    });
+  } catch (err) {
+    console.error('Mood timeline error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to load mood timeline' });
+  }
+});
+
+function parseMoodScore(mood) {
+  if (!mood) return null;
+  var num = parseFloat(mood);
+  if (!isNaN(num)) return num;
+  var map = { happy: 8, content: 7, neutral: 5, calm: 6, anxious: 4, sad: 3, upset: 3, confused: 4, cheerful: 9, peaceful: 7 };
+  return map[mood.toLowerCase()] || 5;
+}
+
+function moodLabel(score) {
+  if (score >= 8) return 'Very Happy';
+  if (score >= 6.5) return 'Happy';
+  if (score >= 5) return 'Content';
+  if (score >= 3.5) return 'Low';
+  return 'Needs Attention';
+}
