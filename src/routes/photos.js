@@ -219,20 +219,21 @@ router.get('/signed-upload-url', async (req, res) => {
 });
 
 
-// GET /api/photos/gallery/:residentId — Alias for family app
+// GET /api/photos/gallery/:residentId — Photos from Messages with type PHOTO
 router.get('/gallery/:residentId', async (req, res) => {
   try {
-    const photos = await prisma.photo.findMany({
-      where: { residentId: req.params.residentId },
+    const photos = await prisma.message.findMany({
+      where: { userId: req.params.residentId, type: 'PHOTO' },
       orderBy: { createdAt: 'desc' },
       take: 50
     });
     const photoUrls = photos.map(p => ({
       id: p.id,
-      url: p.s3Url || p.url,
-      photoUrl: p.s3Url || p.url,
-      caption: p.caption || '',
+      url: '/api/photos/serve/' + p.id,
+      caption: p.content || '',
+      sender: p.senderName || p.sender || 'Family',
       createdAt: p.createdAt,
+      isDelivered: p.isDelivered,
       deliveredAt: p.deliveredAt
     }));
     res.json({ success: true, photos: photoUrls });
@@ -271,5 +272,28 @@ router.delete('/:photoId/delete', async (req, res) => {
   } catch (error) {
     console.error('Delete photo error:', error);
     res.status(500).json({ success: false, error: 'Failed to delete photo' });
+  }
+});
+
+// GET /api/photos/serve/:photoId — Proxy photo through API (avoids CORS/signed URL issues)
+router.get('/serve/:photoId', async (req, res) => {
+  try {
+    const msg = await prisma.message.findUnique({
+      where: { id: req.params.photoId },
+      select: { mediaUrl: true }
+    });
+    if (!msg || !msg.mediaUrl) return res.status(404).json({ error: 'Photo not found' });
+    
+    const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+    const s3 = new S3Client({ region: process.env.AWS_REGION || 'eu-west-2', credentials: { accessKeyId: process.env.AWS_ACCESS_KEY_ID, secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY } });
+    const command = new GetObjectCommand({ Bucket: process.env.S3_BUCKET || 'warda-media-production', Key: msg.mediaUrl });
+    const response = await s3.send(command);
+    
+    res.setHeader('Content-Type', response.ContentType || 'image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    response.Body.pipe(res);
+  } catch (err) {
+    console.error('Photo serve error:', err.message);
+    res.status(500).json({ error: 'Failed to serve photo' });
   }
 });
