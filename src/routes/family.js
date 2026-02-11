@@ -578,3 +578,87 @@ function moodLabel(score) {
   if (score >= 3.5) return 'Low';
   return 'Needs Attention';
 }
+
+// ─── Activity Feed (what Warda and resident talked about) ─────
+router.get('/activity-feed', familyAuth, async function(req, res) {
+  try {
+    var residentId = req.family.residentId;
+    var limit = parseInt(req.query.limit) || 20;
+    
+    // Get real data
+    var wardaMessages = await prisma.message.findMany({
+      where: { userId: residentId, isFromWarda: true },
+      select: { content: true, mood: true, createdAt: true },
+      orderBy: { createdAt: 'desc' }, take: limit
+    });
+
+    var healthLogs = await prisma.healthLog.findMany({
+      where: { userId: residentId },
+      select: { type: true, value: true, notes: true, createdAt: true },
+      orderBy: { createdAt: 'desc' }, take: limit
+    });
+
+    var conversations = await prisma.conversation.findMany({
+      where: { userId: residentId },
+      select: { mood: true, summary: true, startedAt: true, duration: true },
+      orderBy: { startedAt: 'desc' }, take: 10
+    });
+
+    var activities = [];
+    var isDemo = false;
+
+    // Add real conversation summaries
+    conversations.forEach(function(c) {
+      if (c.summary) {
+        activities.push({ type: 'conversation', icon: '💬', text: c.summary, time: c.startedAt, mood: c.mood, duration: c.duration });
+      }
+    });
+
+    // Add health logs (skip repetitive night companion)
+    var seenTypes = {};
+    healthLogs.forEach(function(h) {
+      var key = h.type + '_' + h.value;
+      if (seenTypes[key]) return;
+      seenTypes[key] = true;
+      if (h.type === 'PROACTIVE_INTERACTION') {
+        var labels = { morning_greeting: 'Had a morning chat', bedtime_routine: 'Settled in for the night', night_companion: 'Night companionship active', afternoon_checkin: 'Afternoon check-in' };
+        activities.push({ type: 'proactive', icon: '🌹', text: labels[h.value] || h.value, time: h.createdAt });
+      } else {
+        activities.push({ type: 'health', icon: '🏥', text: h.notes || h.value, time: h.createdAt });
+      }
+    });
+
+    // If very few real activities, add demo data
+    if (activities.length < 5) {
+      isDemo = true;
+      var now = new Date();
+      var profile = await prisma.residentProfile.findUnique({ where: { residentId: residentId }, select: { grewUpIn: true, favouriteMusic: true, hobbies: true, keyMemories: true, spouseName: true } });
+      var p = profile || {};
+      var demoActivities = [
+        { type: 'conversation', icon: '💬', text: 'Talked about ' + (p.grewUpIn || 'home') + ' with great fondness', hoursAgo: 2 },
+        { type: 'music', icon: '🎵', text: 'Listened to ' + (p.favouriteMusic || 'favourite music') + ' together', hoursAgo: 4 },
+        { type: 'memory', icon: '📖', text: 'Shared a memory: ' + (p.keyMemories ? p.keyMemories.split('.')[0] : 'a happy childhood moment'), hoursAgo: 6 },
+        { type: 'proactive', icon: '🌹', text: 'Morning greeting — started the day with a warm chat', hoursAgo: 8 },
+        { type: 'conversation', icon: '😊', text: 'Laughed together about a funny story from the past', hoursAgo: 12 },
+        { type: 'hobby', icon: '🎨', text: 'Discussed ' + (p.hobbies ? (Array.isArray(p.hobbies) ? p.hobbies[0] : p.hobbies.split(',')[0]) : 'hobbies') + ' — really enjoyed it', hoursAgo: 18 },
+        { type: 'family', icon: '👨‍👩‍👧', text: 'Talked about family — mentioned ' + (p.spouseName || 'loved ones') + ' with warmth', hoursAgo: 24 },
+        { type: 'proactive', icon: '🌙', text: 'Bedtime routine — settled in peacefully', hoursAgo: 28 },
+        { type: 'conversation', icon: '💬', text: 'Had a lovely afternoon chat about the weather and garden', hoursAgo: 32 },
+        { type: 'prayer', icon: '🙏', text: 'Quiet time for reflection and prayer', hoursAgo: 36 },
+      ];
+      demoActivities.forEach(function(d) {
+        var t = new Date(now);
+        t.setHours(t.getHours() - d.hoursAgo);
+        activities.push({ type: d.type, icon: d.icon, text: d.text, time: t.toISOString() });
+      });
+    }
+
+    // Sort by time descending
+    activities.sort(function(a, b) { return new Date(b.time).getTime() - new Date(a.time).getTime(); });
+
+    res.json({ success: true, activities: activities.slice(0, limit), isDemo: isDemo });
+  } catch (err) {
+    console.error('Activity feed error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to load activity feed' });
+  }
+});
