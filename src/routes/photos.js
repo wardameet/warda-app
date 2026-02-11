@@ -291,6 +291,8 @@ router.get('/serve/:photoId', async (req, res) => {
     
     res.setHeader('Content-Type', response.ContentType || 'image/jpeg');
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     response.Body.pipe(res);
   } catch (err) {
     console.error('Photo serve error:', err.message);
