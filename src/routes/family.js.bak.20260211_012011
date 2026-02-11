@@ -28,52 +28,19 @@ var jwks = jwksClient({
 async function familyAuth(req, res, next) {
   try {
     var authHeader = req.headers.authorization;
-    if (authHeader === undefined || authHeader === null || authHeader === '') {
-      return res.status(401).json({ success: false, error: 'No token' });
-    }
+    if (!authHeader) return res.status(401).json({ success: false, error: 'No token' });
     var token = authHeader.replace('Bearer ', '');
     var decoded = jwt.decode(token, { complete: true });
-    if (decoded === null || decoded === undefined) {
-      return res.status(401).json({ success: false, error: 'Invalid token' });
-    }
-
-    var email = null;
-
-    // Try Cognito JWKS verification first
-    if (decoded.header && decoded.header.kid) {
-      try {
-        var key = await jwks.getSigningKey(decoded.header.kid);
-        var verified = jwt.verify(token, key.getPublicKey());
-        email = verified.email || verified['cognito:username'];
-      } catch (jwksErr) {
-        console.log('JWKS verify failed, trying local JWT...');
-      }
-    }
-
-    // Fallback: local JWT (from bcrypt login)
-    if (email === null || email === undefined) {
-      try {
-        var localVerified = jwt.verify(token, process.env.JWT_SECRET || 'warda-family-secret-2026');
-        email = localVerified.email;
-      } catch (localErr) {
-        return res.status(401).json({ success: false, error: 'Authentication failed' });
-      }
-    }
-
-    if (email === null || email === undefined) {
-      return res.status(401).json({ success: false, error: 'No email in token' });
-    }
-
+    if (!decoded) return res.status(401).json({ success: false, error: 'Invalid token' });
+    var key = await jwks.getSigningKey(decoded.header.kid);
+    var verified = jwt.verify(token, key.getPublicKey());
+    var email = verified.email || verified['cognito:username'];
     var familyContact = await prisma.familyContact.findFirst({
-      where: { email: email.toLowerCase() },
-      include: { user: { include: { careHome: true } } }
+      where: { email: email },
+      include: { resident: true }
     });
-    if (familyContact === null || familyContact === undefined) {
-      return res.status(403).json({ success: false, error: 'Not a registered family member' });
-    }
+    if (!familyContact) return res.status(403).json({ success: false, error: 'Not a registered family member' });
     req.family = familyContact;
-    req.family.resident = familyContact.user;
-    req.family.residentId = familyContact.userId;
     req.familyEmail = email;
     next();
   } catch (err) {
@@ -162,70 +129,41 @@ router.post('/login', async function(req, res) {
   try {
     var email = req.body.email;
     var password = req.body.password;
-    if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password required' });
+    var cmd = new InitiateAuthCommand({
+      AuthFlow: 'USER_PASSWORD_AUTH',
+      ClientId: CLIENT_ID,
+      AuthParameters: { USERNAME: email, PASSWORD: password }
+    });
+    var result = await cognito.send(cmd);
 
-    var accessToken = null;
-    var refreshToken = null;
-    var idToken = null;
-
-    // Try Cognito first
-    try {
-      var cmd = new InitiateAuthCommand({
-        AuthFlow: 'USER_PASSWORD_AUTH',
-        ClientId: CLIENT_ID,
-        AuthParameters: { USERNAME: email, PASSWORD: password }
-      });
-      var result = await cognito.send(cmd);
-      if (result.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
-        return res.json({ success: true, challenge: 'NEW_PASSWORD_REQUIRED', session: result.Session });
-      }
-      accessToken = result.AuthenticationResult.AccessToken;
-      refreshToken = result.AuthenticationResult.RefreshToken;
-      idToken = result.AuthenticationResult.IdToken;
-    } catch (cognitoErr) {
-      // Cognito failed — try local bcrypt fallback via AdminUser table
-      console.log('Cognito failed for family, trying local fallback for:', email);
-      var bcrypt = require('bcryptjs');
-      var jwt = require('jsonwebtoken');
-      var adminUser = await prisma.adminUser.findFirst({ where: { email: email.toLowerCase() } });
-      if (adminUser && adminUser.tempPassword) {
-        var match = await bcrypt.compare(password, adminUser.tempPassword);
-        if (match) {
-          accessToken = jwt.sign({ sub: adminUser.id, email: adminUser.email, role: adminUser.role }, process.env.JWT_SECRET || 'warda-family-secret-2026', { expiresIn: '7d' });
-          refreshToken = accessToken;
-          idToken = accessToken;
-        } else {
-          return res.status(401).json({ success: false, error: 'Invalid email or password' });
-        }
-      } else {
-        return res.status(401).json({ success: false, error: 'Invalid email or password' });
-      }
+    if (result.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
+      return res.json({ success: true, challenge: 'NEW_PASSWORD_REQUIRED', session: result.Session });
     }
 
-    // Find family contact — relation is "user" not "resident"
+    // Find family contact
     var familyContact = await prisma.familyContact.findFirst({
       where: { email: email.toLowerCase() },
       include: {
-        user: {
+        resident: {
           include: { careHome: true }
         }
       }
     });
 
-    var residentData = familyContact ? familyContact.user : null;
-
     res.json({
       success: true,
-      tokens: { accessToken, refreshToken, idToken },
+      tokens: {
+        accessToken: result.AuthenticationResult.AccessToken,
+        refreshToken: result.AuthenticationResult.RefreshToken,
+        idToken: result.AuthenticationResult.IdToken
+      },
       family: {
         id: familyContact ? familyContact.id : null,
         name: familyContact ? familyContact.name : null,
-        email: email,
         relationship: familyContact ? familyContact.relationship : null,
-        isPrimary: familyContact ? familyContact.isPrimary : false,
-        residentName: residentData ? (residentData.preferredName || residentData.firstName) + ' ' + residentData.lastName : null,
-        residentId: residentData ? residentData.id : null,
-        careHomeName: residentData && residentData.careHome ? residentData.careHome.name : null
+        residentName: familyContact ? (familyContact.resident.preferredName || familyContact.resident.firstName) + ' ' + familyContact.resident.lastName : null,
+        residentId: familyContact ? familyContact.residentId : null,
+        careHomeName: familyContact && familyContact.resident.careHome ? familyContact.resident.careHome.name : null
       }
     });
   } catch (err) {
@@ -233,7 +171,6 @@ router.post('/login', async function(req, res) {
     res.status(401).json({ success: false, error: 'Invalid email or password' });
   }
 });
-
 
 // ─── Dashboard Data (requires auth) ───────────────────────────
 
@@ -370,7 +307,7 @@ router.post('/messages', familyAuth, async function(req, res) {
 router.get('/profile', familyAuth, async function(req, res) {
   try {
     var profile = await prisma.residentProfile.findUnique({
-      where: { residentId: req.family.residentId },
+      where: { userId: req.family.residentId },
       include: {
         resident: {
           select: {
@@ -380,12 +317,8 @@ router.get('/profile', familyAuth, async function(req, res) {
         }
       }
     });
-    if (profile) {
-      profile.questionnaireComplete = true;
-    }
     res.json({ success: true, profile: profile });
   } catch (err) {
-    console.error('Profile error:', err.message);
     res.status(500).json({ success: false, error: 'Failed to load profile' });
   }
 });

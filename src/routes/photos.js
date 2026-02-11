@@ -218,6 +218,30 @@ router.get('/signed-upload-url', async (req, res) => {
   }
 });
 
+
+// GET /api/photos/gallery/:residentId — Alias for family app
+router.get('/gallery/:residentId', async (req, res) => {
+  try {
+    const photos = await prisma.photo.findMany({
+      where: { residentId: req.params.residentId },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    const photoUrls = photos.map(p => ({
+      id: p.id,
+      url: p.s3Url || p.url,
+      photoUrl: p.s3Url || p.url,
+      caption: p.caption || '',
+      createdAt: p.createdAt,
+      deliveredAt: p.deliveredAt
+    }));
+    res.json({ success: true, photos: photoUrls });
+  } catch (err) {
+    console.error('Gallery error:', err.message);
+    res.json({ success: true, photos: [] });
+  }
+});
+
 module.exports = router;
 
 // DELETE /api/photos/:photoId/delete — Delete a photo
