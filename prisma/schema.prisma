@@ -350,6 +350,7 @@ model ResidentProfile {
   // Questionnaire progress
   questionnaireStep    Int      @default(0)
   questionnaireComplete Boolean @default(false)
+  questionnaireToken   String?  @unique
   // === Step 1: Identity ===
   gender              String?
   nationality         String?

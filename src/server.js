@@ -40,6 +40,7 @@ const billingRoutes = require('./routes/billing');
 const setupGuideRoutes = require('./routes/setupGuide');
 const complianceRoutes = require('./routes/compliance');
 const b2cSignupRoutes = require('./routes/b2cSignup');
+const publicQuestionnaireRoutes = require("./routes/publicQuestionnaire");
 const transcribeRoutes = require("./routes/transcribe");
 const orientationRoutes = require("./routes/orientation");
 const familyCommsRoutes = require("./routes/familyComms");
@@ -128,6 +129,7 @@ app.use('/api/sentiment', sentimentRoutes);
 app.use('/api/setup', setupGuideRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/b2c', b2cSignupRoutes);
+app.use("/api/questionnaire", publicQuestionnaireRoutes);
 
 // Admin Portal API
 app.use('/api/admin/auth', adminAuthRoutes);
