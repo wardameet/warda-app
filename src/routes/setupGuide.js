@@ -1,3 +1,4 @@
+const { requireAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 
@@ -21,19 +22,19 @@ const FAQ = [
 ];
 
 // GET /api/setup/guide - Full setup guide
-router.get('/guide', (req, res) => {
+router.get('/guide', requireAuth, (req, res) => {
   res.json({ success: true, steps: SETUP_STEPS, totalTime: '~40 minutes (mostly charging)', faq: FAQ });
 });
 
 // GET /api/setup/step/:num - Individual step
-router.get('/step/:num', (req, res) => {
+router.get('/step/:num', requireAuth, (req, res) => {
   const step = SETUP_STEPS.find(s => s.step === parseInt(req.params.num));
   if (!step) return res.status(404).json({ error: 'Step not found' });
   res.json({ success: true, step, total: SETUP_STEPS.length });
 });
 
 // GET /api/setup/faq - FAQ only
-router.get('/faq', (req, res) => {
+router.get('/faq', requireAuth, (req, res) => {
   res.json({ success: true, faq: FAQ });
 });
 

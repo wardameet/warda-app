@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 /**
  * Voice Routes
  * Text-to-speech and speech-to-text endpoints
@@ -10,7 +11,7 @@ const { transcribeBase64 } = require('../services/transcribe');
 const { getWardaResponse } = require('../services/claude');
 
 // Convert text to speech
-router.post('/speak', async (req, res) => {
+router.post('/speak', tabletAuth, async (req, res) => {
   try {
     const { text, voice } = req.body;
     
@@ -33,7 +34,7 @@ router.post('/speak', async (req, res) => {
 });
 
 // Voice conversation - receive text, get Warda response as audio
-router.post('/conversation', async (req, res) => {
+router.post('/conversation', tabletAuth, async (req, res) => {
   try {
     const { userId, message, context } = req.body;
 
@@ -61,14 +62,14 @@ router.post('/conversation', async (req, res) => {
 });
 
 // Get available voices
-router.get('/voices', (req, res) => {
+router.get('/voices', tabletAuth, (req, res) => {
   res.json({ success: true, voices: VOICES });
 });
 
 module.exports = router;
 
 // Transcribe audio from tablet
-router.post("/transcribe", async (req, res) => {
+router.post("/transcribe", tabletAuth, async (req, res) => {
   try {
     const { audio, format, sampleRate } = req.body;
     if (!audio) return res.status(400).json({ success: false, error: "Audio data required" });
@@ -125,7 +126,7 @@ function detectNavCommand(message) {
 }
 
 // Voice command endpoint - checks for navigation first, falls back to conversation
-router.post('/command', async (req, res) => {
+router.post('/command', tabletAuth, async (req, res) => {
   try {
     const { userId, message, context } = req.body;
     if (!message) return res.status(400).json({ success: false, error: 'Message required' });

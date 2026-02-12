@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 /**
  * WARDA - Presence API Routes
  * ============================
@@ -12,7 +13,7 @@ const router = express.Router();
 const { getPresence, isUserOnline } = require('../services/socket');
 
 // GET /api/presence/:careHomeId - Online users in a care home
-router.get('/:careHomeId', (req, res) => {
+router.get('/:careHomeId', tabletAuth, (req, res) => {
   try {
     const { careHomeId } = req.params;
     const onlineUsers = getPresence(careHomeId);
@@ -31,7 +32,7 @@ router.get('/:careHomeId', (req, res) => {
 });
 
 // GET /api/presence/tablet/:residentId - Is tablet online
-router.get('/tablet/:residentId', (req, res) => {
+router.get('/tablet/:residentId', tabletAuth, (req, res) => {
   try {
     const { residentId } = req.params;
     const online = isUserOnline('tablet', residentId);

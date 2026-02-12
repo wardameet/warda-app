@@ -1,9 +1,10 @@
+const { requireAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { detectSentiment, detectLanguage, analyzeConversation } = require('../services/comprehendService');
 
 // POST /api/sentiment/analyze — full conversation analysis
-router.post('/analyze', async (req, res) => {
+router.post('/analyze', requireAuth, async (req, res) => {
   try {
     const { text, languageCode } = req.body;
     if (!text) return res.status(400).json({ success: false, error: 'text is required' });
@@ -16,7 +17,7 @@ router.post('/analyze', async (req, res) => {
 });
 
 // POST /api/sentiment/detect-language — auto-detect language
-router.post('/detect-language', async (req, res) => {
+router.post('/detect-language', requireAuth, async (req, res) => {
   try {
     const { text } = req.body;
     if (!text) return res.status(400).json({ success: false, error: 'text is required' });

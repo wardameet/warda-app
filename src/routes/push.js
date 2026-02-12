@@ -1,15 +1,16 @@
+const { requireAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // GET /api/push/vapid-key - Public key for client
-router.get('/vapid-key', (req, res) => {
+router.get('/vapid-key', requireAuth, (req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
 });
 
 // POST /api/push/subscribe - Save push subscription
-router.post('/subscribe', async (req, res) => {
+router.post('/subscribe', requireAuth, async (req, res) => {
   try {
     const { subscription, userId, userType } = req.body;
     if (!subscription || !subscription.endpoint || !userId) {
@@ -43,7 +44,7 @@ router.post('/subscribe', async (req, res) => {
 });
 
 // POST /api/push/unsubscribe - Remove push subscription
-router.post('/unsubscribe', async (req, res) => {
+router.post('/unsubscribe', requireAuth, async (req, res) => {
   try {
     const { endpoint } = req.body;
     if (!endpoint) return res.status(400).json({ error: 'Missing endpoint' });
@@ -56,7 +57,7 @@ router.post('/unsubscribe', async (req, res) => {
 });
 
 // POST /api/push/test - Send test notification
-router.post('/test', async (req, res) => {
+router.post('/test', requireAuth, async (req, res) => {
   try {
     const { userId } = req.body;
     const { sendPushToUser } = require('../services/pushNotification');
@@ -76,7 +77,7 @@ module.exports = router;
 
 // ─── Family Management Endpoints (Admin) ─────────────────
 // GET /api/push/families/:careHomeId - All family contacts for a care home
-router.get('/families/:careHomeId', async (req, res) => {
+router.get('/families/:careHomeId', requireAuth, async (req, res) => {
   try {
     const { careHomeId } = req.params;
     const families = await prisma.familyContact.findMany({
@@ -98,7 +99,7 @@ router.get('/families/:careHomeId', async (req, res) => {
 });
 
 // PUT /api/push/families/:id - Update family contact
-router.put('/families/:id', async (req, res) => {
+router.put('/families/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, relationship, email, phone, isPrimary, accessLevel } = req.body;
@@ -114,7 +115,7 @@ router.put('/families/:id', async (req, res) => {
 });
 
 // POST /api/push/families/:id/reinvite - Resend invitation
-router.post('/families/:id/reinvite', async (req, res) => {
+router.post('/families/:id/reinvite', requireAuth, async (req, res) => {
   try {
     const fc = await prisma.familyContact.findUnique({ where: { id: req.params.id }, include: { user: true } });
     if (!fc) return res.status(404).json({ error: 'Not found' });

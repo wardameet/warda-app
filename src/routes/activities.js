@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 
@@ -58,7 +59,7 @@ const EXERCISES = [
 ];
 
 // GET /api/activities/music - Music library with optional filters
-router.get('/music', (req, res) => {
+router.get('/music', tabletAuth, (req, res) => {
   const { genre, mood, decade } = req.query;
   let filtered = [...MUSIC_LIBRARY];
   if (genre) filtered = filtered.filter(m => m.genre.toLowerCase() === genre.toLowerCase());
@@ -70,19 +71,19 @@ router.get('/music', (req, res) => {
 });
 
 // GET /api/activities/games - Available games
-router.get('/games', (req, res) => {
+router.get('/games', tabletAuth, (req, res) => {
   res.json({ success: true, games: GAMES });
 });
 
 // GET /api/activities/trivia - Get trivia questions
-router.get('/trivia', (req, res) => {
+router.get('/trivia', tabletAuth, (req, res) => {
   const count = parseInt(req.query.count) || 5;
   const shuffled = [...TRIVIA].sort(() => Math.random() - 0.5).slice(0, count);
   res.json({ success: true, questions: shuffled });
 });
 
 // POST /api/activities/trivia/check - Check trivia answer
-router.post('/trivia/check', (req, res) => {
+router.post('/trivia/check', tabletAuth, (req, res) => {
   const { question, selected } = req.body;
   const found = TRIVIA.find(t => t.q === question);
   if (!found) return res.json({ correct: false, message: "I couldn't find that question, dear." });
@@ -91,7 +92,7 @@ router.post('/trivia/check', (req, res) => {
 });
 
 // GET /api/activities/exercises - Exercise guides
-router.get('/exercises', (req, res) => {
+router.get('/exercises', tabletAuth, (req, res) => {
   const { level } = req.query;
   let filtered = [...EXERCISES];
   if (level) filtered = filtered.filter(e => e.level === level);
@@ -99,7 +100,7 @@ router.get('/exercises', (req, res) => {
 });
 
 // GET /api/activities/exercises/:id - Single exercise detail
-router.get('/exercises/:id', (req, res) => {
+router.get('/exercises/:id', tabletAuth, (req, res) => {
   const exercise = EXERCISES.find(e => e.id === req.params.id);
   if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
   res.json({ success: true, exercise });

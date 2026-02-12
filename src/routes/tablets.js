@@ -1,10 +1,11 @@
+const { requireAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // GET /api/tablets - List all tablets for a care home
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const { careHomeId } = req.query;
     const where = careHomeId ? { careHomeId } : {};
@@ -28,7 +29,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/tablets - Register a new tablet
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const { serialNumber, careHomeId } = req.body;
     if (!serialNumber) return res.status(400).json({ error: 'Serial number required' });
@@ -45,7 +46,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/tablets/:id - Update tablet
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAuth, async (req, res) => {
   try {
     const { serialNumber, status, careHomeId, firmwareVersion, shippingStatus } = req.body;
     const tablet = await prisma.tablet.update({
@@ -60,7 +61,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // POST /api/tablets/:id/assign - Assign tablet to resident
-router.post('/:id/assign', async (req, res) => {
+router.post('/:id/assign', requireAuth, async (req, res) => {
   try {
     const { residentId } = req.body;
     // Unassign any existing tablet from this resident
@@ -80,7 +81,7 @@ router.post('/:id/assign', async (req, res) => {
 });
 
 // POST /api/tablets/:id/unassign - Unassign tablet from resident
-router.post('/:id/unassign', async (req, res) => {
+router.post('/:id/unassign', requireAuth, async (req, res) => {
   try {
     const tablet = await prisma.tablet.findUnique({ where: { id: req.params.id }, include: { assignedUser: true } });
     if (tablet?.assignedUser) {
@@ -95,7 +96,7 @@ router.post('/:id/unassign', async (req, res) => {
 });
 
 // POST /api/tablets/:id/heartbeat - Tablet reports status
-router.post('/:id/heartbeat', async (req, res) => {
+router.post('/:id/heartbeat', requireAuth, async (req, res) => {
   try {
     const { batteryLevel, firmwareVersion } = req.body;
     await prisma.tablet.update({
@@ -109,7 +110,7 @@ router.post('/:id/heartbeat', async (req, res) => {
 });
 
 // DELETE /api/tablets/:id - Remove tablet
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   try {
     const tablet = await prisma.tablet.findUnique({ where: { id: req.params.id }, include: { assignedUser: true } });
     if (tablet?.assignedUser) {

@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
@@ -112,7 +113,7 @@ var FAITH_CONTENT = {
   }
 };
 
-router.get('/content/:residentId', async function(req, res) {
+router.get('/content/:residentId', tabletAuth, async function(req, res) {
   try {
     var profile = await prisma.residentProfile.findFirst({
       where: { residentId: req.params.residentId },

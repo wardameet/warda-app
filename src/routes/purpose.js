@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 /**
  * Purpose Features Routes - P1 Item 11
  */
@@ -6,7 +7,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-router.post('/recipe', async (req, res) => {
+router.post('/recipe', tabletAuth, async (req, res) => {
   try {
     const { userId, recipeName, content: recipeContent, detectedFrom } = req.body;
     if (!userId || !recipeContent) return res.status(400).json({ error: 'userId and content required' });
@@ -28,7 +29,7 @@ router.post('/recipe', async (req, res) => {
   }
 });
 
-router.get('/recipes/:userId', async (req, res) => {
+router.get('/recipes/:userId', tabletAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     const recipes = await prisma.healthLog.findMany({
@@ -45,7 +46,7 @@ router.get('/recipes/:userId', async (req, res) => {
   }
 });
 
-router.post('/voice-message', async (req, res) => {
+router.post('/voice-message', tabletAuth, async (req, res) => {
   try {
     const { userId, recipientName, transcription, s3Key, durationSeconds } = req.body;
     if (!userId || !transcription) return res.status(400).json({ error: 'userId and transcription required' });
@@ -68,7 +69,7 @@ router.post('/voice-message', async (req, res) => {
   }
 });
 
-router.get('/voice-messages/:userId', async (req, res) => {
+router.get('/voice-messages/:userId', tabletAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     const messages = await prisma.healthLog.findMany({
@@ -89,7 +90,7 @@ router.get('/voice-messages/:userId', async (req, res) => {
   }
 });
 
-router.post('/teaching', async (req, res) => {
+router.post('/teaching', tabletAuth, async (req, res) => {
   try {
     const { userId, category, content: teachContent, wardaLearned } = req.body;
     if (!userId || !teachContent) return res.status(400).json({ error: 'userId and content required' });
@@ -111,7 +112,7 @@ router.post('/teaching', async (req, res) => {
   }
 });
 
-router.get('/teachings/:userId', async (req, res) => {
+router.get('/teachings/:userId', tabletAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     const teachings = await prisma.healthLog.findMany({

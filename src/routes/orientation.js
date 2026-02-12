@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 // ============================================================
 // WARDA — Orientation Routes
 // Time, date, weather, season for ambient display
@@ -10,7 +11,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // GET /api/orientation — Full orientation data for tablet
-router.get('/', async (req, res) => {
+router.get('/', tabletAuth, async (req, res) => {
   try {
     // Get care home location if residentId provided
     let location = 'Edinburgh,GB';
@@ -37,7 +38,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/orientation/weather — Just weather
-router.get('/weather', async (req, res) => {
+router.get('/weather', tabletAuth, async (req, res) => {
   try {
     const location = req.query.location || 'Edinburgh,GB';
     const weather = await getWeather(location);
@@ -48,7 +49,7 @@ router.get('/weather', async (req, res) => {
 });
 
 // POST /api/orientation/clear-cache — Clear weather cache
-router.post('/clear-cache', (req, res) => {
+router.post('/clear-cache', tabletAuth, (req, res) => {
   clearWeatherCache();
   res.json({ success: true, message: 'Weather cache cleared' });
 });

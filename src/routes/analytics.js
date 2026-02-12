@@ -1,3 +1,4 @@
+const { requireAuth } = require("../middleware/apiAuth");
 /**
  * Analytics Routes
  * Engagement metrics for care home dashboards
@@ -8,7 +9,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // GET /api/analytics/summary/:careHomeId
-router.get('/summary/:careHomeId', async (req, res) => {
+router.get('/summary/:careHomeId', requireAuth, async (req, res) => {
   try {
     const { careHomeId } = req.params;
     const days = parseInt(req.query.days) || 7;

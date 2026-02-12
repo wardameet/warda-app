@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
@@ -5,7 +6,7 @@ const prisma = new PrismaClient();
 
 // GET /api/music/preferences/:residentId
 // Returns music preferences from questionnaire + generates personalised playlists
-router.get('/preferences/:residentId', async function(req, res) {
+router.get('/preferences/:residentId', tabletAuth, async function(req, res) {
   try {
     var profile = await prisma.residentProfile.findFirst({
       where: { residentId: req.params.residentId },

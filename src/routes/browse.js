@@ -1,3 +1,4 @@
+const { requireAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 
@@ -77,7 +78,7 @@ function sanitizeSearchUrl(query) {
 }
 
 // POST /api/browse/check - Check if URL is safe
-router.post('/check', (req, res) => {
+router.post('/check', requireAuth, (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL required' });
   const result = isUrlSafe(url);
@@ -85,7 +86,7 @@ router.post('/check', (req, res) => {
 });
 
 // POST /api/browse/search - Safe Google search
-router.post('/search', (req, res) => {
+router.post('/search', requireAuth, (req, res) => {
   const { query } = req.body;
   if (!query) return res.status(400).json({ error: 'Query required' });
   
@@ -102,7 +103,7 @@ router.post('/search', (req, res) => {
 });
 
 // GET /api/browse/shortcuts - Get safe bookmark shortcuts
-router.get('/shortcuts', (req, res) => {
+router.get('/shortcuts', requireAuth, (req, res) => {
   res.json({
     shortcuts: [
       { id: 'bbc', icon: '📺', name: 'BBC News', url: 'https://www.bbc.co.uk/news', color: '#dc2626' },
@@ -119,7 +120,7 @@ router.get('/shortcuts', (req, res) => {
 });
 
 // GET /api/browse/whitelist - Admin view of allowed domains
-router.get('/whitelist', (req, res) => {
+router.get('/whitelist', requireAuth, (req, res) => {
   res.json({ domains: ALLOWED_DOMAINS, blockedKeywords: BLOCKED_KEYWORDS });
 });
 

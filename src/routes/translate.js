@@ -1,9 +1,10 @@
+const { requireAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { translateText, SUPPORTED_LANGUAGES } = require('../services/translateService');
 
 // GET /api/translate/languages — list supported languages
-router.get('/languages', (req, res) => {
+router.get('/languages', requireAuth, (req, res) => {
   const languages = Object.entries(SUPPORTED_LANGUAGES).map(([name, info]) => ({
     name,
     code: info.code,
@@ -15,7 +16,7 @@ router.get('/languages', (req, res) => {
 });
 
 // POST /api/translate — translate text
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const { text, targetLanguage, sourceLanguage } = req.body;
     if (!text || !targetLanguage) {

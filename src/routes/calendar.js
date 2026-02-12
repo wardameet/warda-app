@@ -1,10 +1,11 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // GET /api/calendar/:userId - Get events for a date range
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', tabletAuth, async (req, res) => {
   try {
     const { date, from, to } = req.query;
     const userId = req.params.userId;
@@ -64,7 +65,7 @@ router.get('/:userId', async (req, res) => {
 });
 
 // POST /api/calendar - Create event
-router.post('/', async (req, res) => {
+router.post('/', tabletAuth, async (req, res) => {
   try {
     const { userId, title, time, type, date, notes, recurring } = req.body;
     if (!userId || !title || !time) return res.status(400).json({ error: 'userId, title, time required' });
@@ -86,7 +87,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/calendar/:id - Update event
-router.put('/:id', async (req, res) => {
+router.put('/:id', tabletAuth, async (req, res) => {
   try {
     const event = await prisma.calendarEvent.update({ where: { id: req.params.id }, data: req.body });
     res.json({ success: true, event });
@@ -96,7 +97,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/calendar/:id - Delete event
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', tabletAuth, async (req, res) => {
   try {
     await prisma.calendarEvent.delete({ where: { id: req.params.id } });
     res.json({ success: true });

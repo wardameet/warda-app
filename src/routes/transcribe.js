@@ -1,3 +1,4 @@
+const { requireAuth } = require("../middleware/apiAuth");
 // ============================================================
 // WARDA — Transcribe Routes
 // Speech-to-text API endpoints
@@ -15,7 +16,7 @@ const upload = multer({
 });
 
 // POST /api/transcribe/audio — Upload audio file for transcription
-router.post('/audio', upload.single('audio'), async (req, res) => {
+router.post('/audio', requireAuth, upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No audio file provided' });
@@ -35,7 +36,7 @@ router.post('/audio', upload.single('audio'), async (req, res) => {
 });
 
 // POST /api/transcribe/base64 — Send base64 audio for transcription
-router.post('/base64', async (req, res) => {
+router.post('/base64', requireAuth, async (req, res) => {
   try {
     const { audio, language, sampleRate, encoding } = req.body;
 

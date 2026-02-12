@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 /**
  * Reminiscence & Life Story Routes - P1 Item 9
  */
@@ -9,7 +10,7 @@ const {
   getLifeStories, generateReminiscencePrompt, getLifeStoryContext, storeLifeStory
 } = require('../services/reminiscence');
 
-router.get('/stories/:userId', async (req, res) => {
+router.get('/stories/:userId', tabletAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     const { tag, limit } = req.query;
@@ -21,7 +22,7 @@ router.get('/stories/:userId', async (req, res) => {
   }
 });
 
-router.get('/prompt/:userId', async (req, res) => {
+router.get('/prompt/:userId', tabletAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     const promptData = await generateReminiscencePrompt(userId);
@@ -33,7 +34,7 @@ router.get('/prompt/:userId', async (req, res) => {
   }
 });
 
-router.get('/context/:userId', async (req, res) => {
+router.get('/context/:userId', tabletAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     const maxEntries = parseInt(req.query.max) || 5;
@@ -45,7 +46,7 @@ router.get('/context/:userId', async (req, res) => {
   }
 });
 
-router.post('/stories', async (req, res) => {
+router.post('/stories', tabletAuth, async (req, res) => {
   try {
     const { userId, story, wardaResponse } = req.body;
     if (!userId || !story) return res.status(400).json({ error: 'userId and story required' });
@@ -57,7 +58,7 @@ router.post('/stories', async (req, res) => {
   }
 });
 
-router.get('/tags/:userId', async (req, res) => {
+router.get('/tags/:userId', tabletAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     const stories = await getLifeStories(userId, { limit: 100 });
