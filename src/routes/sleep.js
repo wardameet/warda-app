@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 /**
  * Sleep Routes - P1 Item 7
  */

@@ -1,10 +1,11 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // GET /api/medications/:userId - List medications for a resident
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', tabletAuth, async (req, res) => {
   try {
     const meds = await prisma.medication.findMany({
       where: { userId: req.params.userId },
@@ -20,7 +21,7 @@ router.get('/:userId', async (req, res) => {
 });
 
 // POST /api/medications - Add medication
-router.post('/', async (req, res) => {
+router.post('/', tabletAuth, async (req, res) => {
   try {
     const { userId, name, dosage, frequency, timeOfDay, notes } = req.body;
     if (!userId || !name) return res.status(400).json({ error: 'userId and name required' });
@@ -35,7 +36,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/medications/:id - Update medication
-router.put('/:id', async (req, res) => {
+router.put('/:id', tabletAuth, async (req, res) => {
   try {
     const { name, dosage, frequency, timeOfDay, notes, isActive } = req.body;
     const med = await prisma.medication.update({
@@ -50,7 +51,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/medications/:id - Remove medication
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', tabletAuth, async (req, res) => {
   try {
     await prisma.medication.delete({ where: { id: req.params.id } });
     res.json({ success: true });

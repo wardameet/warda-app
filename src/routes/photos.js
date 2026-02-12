@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 // ============================================================
 // WARDA — Photo Routes
 // Upload, view, manage photos for residents

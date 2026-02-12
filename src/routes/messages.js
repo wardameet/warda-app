@@ -1,3 +1,4 @@
+const { requireAuth } = require("../middleware/apiAuth");
 /**
  * Messages Routes
  * Handles two-way messaging between residents, family, GP, and staff

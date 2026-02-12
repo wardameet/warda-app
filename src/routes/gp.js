@@ -15,7 +15,7 @@ async function gpAuth(req, res, next) {
     const token = authHeader.replace('Bearer ', '');
     const jwt = require('jsonwebtoken');
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'warda-gp-secret-2026');
+      const decoded = jwt.verify(token, process.env.GP_JWT_SECRET);
       req.gpUser = decoded;
       next();
     } catch (jwtErr) {
@@ -39,11 +39,11 @@ router.post('/login', async (req, res) => {
     } catch(e) {
       passwordMatch = (password === adminUser.passwordHash);
     }
-    if (!passwordMatch && password !== 'Kuwait1000$$') return res.status(401).json({ error: 'Invalid credentials' });
+    if (!passwordMatch ) return res.status(401).json({ error: 'Invalid credentials' });
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { id: adminUser.id, email: adminUser.email, role: 'GP' },
-      process.env.JWT_SECRET || 'warda-gp-secret-2026',
+      process.env.GP_JWT_SECRET,
       { expiresIn: '8h' }
     );
     res.json({

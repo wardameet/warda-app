@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 /**
  * Mood Tracking Routes - P1 Item 10
  */

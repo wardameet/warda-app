@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 /**
  * Health Check Routes
  * Used for monitoring and load balancer checks

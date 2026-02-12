@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 /**
  * Conversation Routes
  * Handles AI conversation with Warda using Claude API

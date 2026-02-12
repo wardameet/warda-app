@@ -1,3 +1,4 @@
+const { requireAuth } = require("../middleware/apiAuth");
 // ============================================================
 // WARDA — Family Communication Flow
 // End-to-end: Family → Message/Photo → Warda delivers → Resident replies

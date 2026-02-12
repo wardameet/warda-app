@@ -1,3 +1,4 @@
+const { requireAuth } = require("../middleware/apiAuth");
 /**
  * WARDA - Alerts API Routes
  * =========================

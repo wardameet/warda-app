@@ -1,3 +1,4 @@
+const { tabletAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
@@ -7,7 +8,7 @@ const prisma = new PrismaClient();
 const LOG_TYPES = ['MOOD', 'PAIN', 'SLEEP', 'APPETITE', 'MOBILITY', 'MEDICATION_TAKEN', 'MEDICATION_SKIPPED', 'VITALS', 'INCIDENT', 'NOTE'];
 
 // GET /api/health-logs/:userId - Get health logs with filters
-router.get('/:userId', async (req, res) => {
+router.get('/:userId', tabletAuth, async (req, res) => {
   try {
     const { type, from, to, limit } = req.query;
     const where = { userId: req.params.userId };
@@ -37,7 +38,7 @@ router.get('/:userId', async (req, res) => {
 });
 
 // POST /api/health-logs - Create health log
-router.post('/', async (req, res) => {
+router.post('/', tabletAuth, async (req, res) => {
   try {
     const { userId, type, value, notes, recordedBy } = req.body;
     if (!userId || !type || !value) return res.status(400).json({ error: 'userId, type, value required' });

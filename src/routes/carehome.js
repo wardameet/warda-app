@@ -9,7 +9,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = new PrismaClient();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'warda-carehome-secret-2026';
+const JWT_SECRET = process.env.CAREHOME_JWT_SECRET;
 
 // ─── Auth Middleware ─────────────────────────────────────────
 function carehomeAuth(req, res, next) {
