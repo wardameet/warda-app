@@ -4,7 +4,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { PrismaClient } = require('@prisma/client');
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const WARDA_BASE_PROMPT = `You are Warda, a warm and caring AI companion for elderly residents in care homes. Your name means "rose" in Arabic.
 

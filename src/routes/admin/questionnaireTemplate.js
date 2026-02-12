@@ -8,7 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { adminAuth, requireRole } = require('../../middleware/adminAuth');
-const prisma = new PrismaClient();
+const prisma = require('../../lib/prisma');
 
 // Default template - matches current 10-step hardcoded questionnaire
 const DEFAULT_TEMPLATE = {

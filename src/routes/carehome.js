@@ -7,7 +7,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const JWT_SECRET = process.env.CAREHOME_JWT_SECRET;
 

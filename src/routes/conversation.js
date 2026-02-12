@@ -1,3 +1,4 @@
+const { validate, conversationSchema } = require('../lib/validators');
 const { tabletAuth } = require("../middleware/apiAuth");
 /**
  * Conversation Routes
@@ -15,7 +16,7 @@ const { saveConversation, getConversationHistory } = require('../services/dynamo
 const { logConversationHealth } = require("../services/healthLogger");
 const { storeLifeStory } = require("../services/reminiscence");
 const { isNightTime, logSleepInteraction } = require("../services/nightMode");
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // ─── Family message intent detection ───
 function detectFamilyMessageIntent(message) {

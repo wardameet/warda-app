@@ -4,8 +4,7 @@ const { tabletAuth } = require("../middleware/apiAuth");
  */
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 const {
   generateBedtimeMessage, generateNightWakingResponse, generateMorningMessage,
   logSleepInteraction, getSleepSummary, isNightTime, getTimePeriod

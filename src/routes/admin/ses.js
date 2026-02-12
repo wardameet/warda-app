@@ -2,8 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { adminAuth, requireRole } = require('../../middleware/adminAuth');
 const { verifyEmail, verifyEmails, getVerificationStatus, isEmailVerified } = require('../../services/sesVerifier');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../../lib/prisma');
 
 // GET /api/admin/ses/status — Get SES verification status
 router.get('/status', adminAuth, async (req, res) => {

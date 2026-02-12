@@ -3,8 +3,7 @@
  * P1 Item 8: Health Symptoms Logging via Conversation
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const SYMPTOM_PATTERNS = {
   pain: {

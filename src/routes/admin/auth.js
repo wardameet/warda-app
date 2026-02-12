@@ -16,7 +16,7 @@ const {
 const { PrismaClient } = require('@prisma/client');
 const { adminAuth, logAudit } = require('../../middleware/adminAuth');
 
-const prisma = new PrismaClient();
+const prisma = require('../../lib/prisma');
 
 const COGNITO_REGION = process.env.AWS_REGION || 'eu-west-2';
 const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'eu-west-2_sozTMWhUG';

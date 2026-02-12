@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // POST /api/questionnaire/generate-link — Generate shareable link (admin only)
 router.post('/generate-link', async (req, res) => {

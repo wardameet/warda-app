@@ -3,8 +3,7 @@
  * P1 Item 7: Sleep & Night-Time Support
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 function getTimePeriod(hour) {
   if (hour >= 6 && hour < 9) return 'morning';

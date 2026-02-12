@@ -2,8 +2,7 @@
  * Medication Reminder Service
  * Checks every 15 minutes for due medications and notifies tablets
  */
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 const { textToSpeech, VOICES } = require('./voice');
 
 const TIME_MAP = {

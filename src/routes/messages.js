@@ -9,7 +9,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { uploadToS3, getSignedUrl } = require('../services/s3');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Get messages for a conversation
 router.get('/:residentId/:contactId', async (req, res) => {

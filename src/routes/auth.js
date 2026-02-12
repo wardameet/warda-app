@@ -1,3 +1,4 @@
+const { validate, loginSchema, registerSchema } = require('../lib/validators');
 /**
  * Authentication Routes
  * Handles Cognito authentication for all user types
@@ -5,8 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 const { CognitoIdentityProviderClient, InitiateAuthCommand, SignUpCommand, ConfirmSignUpCommand } = require('@aws-sdk/client-cognito-identity-provider');
 
 const cognitoClient = new CognitoIdentityProviderClient({

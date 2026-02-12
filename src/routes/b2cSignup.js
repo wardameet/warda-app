@@ -1,7 +1,7 @@
+const { validate, b2cSignupSchema } = require('../lib/validators');
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 // Auth via Cognito - bcrypt not needed here
 
 // POST /api/b2c/register - Family self-registration

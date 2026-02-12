@@ -8,7 +8,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { adminAuth, logAudit } = require('../../middleware/adminAuth');
 
-const prisma = new PrismaClient();
+const prisma = require('../../lib/prisma');
 
 router.use(adminAuth);
 

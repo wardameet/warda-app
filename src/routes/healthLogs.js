@@ -1,8 +1,7 @@
 const { tabletAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Health log types
 const LOG_TYPES = ['MOOD', 'PAIN', 'SLEEP', 'APPETITE', 'MOBILITY', 'MEDICATION_TAKEN', 'MEDICATION_SKIPPED', 'VITALS', 'INCIDENT', 'NOTE'];

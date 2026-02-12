@@ -5,8 +5,7 @@
  */
 const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-rsa');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Cognito JWKS client
 const cognitoClient = jwksClient({

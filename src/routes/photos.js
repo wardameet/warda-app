@@ -8,8 +8,7 @@ const { tabletAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 const { uploadPhoto, getSignedPhotoUrl, listResidentPhotos, deletePhoto, getUploadSignedUrl } = require('../services/s3');
 
 const upload = multer({

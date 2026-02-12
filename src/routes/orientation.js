@@ -7,8 +7,7 @@ const { tabletAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
 const { getOrientationData, getWeather, clearWeatherCache } = require('../services/weather');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // GET /api/orientation — Full orientation data for tablet
 router.get('/', tabletAuth, async (req, res) => {

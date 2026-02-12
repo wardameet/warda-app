@@ -14,7 +14,7 @@ var ConfirmSignUpCommand = require('@aws-sdk/client-cognito-identity-provider').
 var jwt = require('jsonwebtoken');
 var jwksClient = require('jwks-rsa');
 
-var prisma = new PrismaClient();
+var prisma = require('../lib/prisma');
 var cognito = new CognitoIdentityProviderClient({ region: 'eu-west-2' });
 var USER_POOL_ID = 'eu-west-2_sozTMWhUG';
 var CLIENT_ID = '6ktpvr06ac5dfig41s6394l25';

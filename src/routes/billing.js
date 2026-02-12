@@ -1,8 +1,7 @@
 const { requireAuth } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Stripe would be initialized with: const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 // For now, we build the full integration-ready structure

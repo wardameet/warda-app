@@ -17,7 +17,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { broadcastAlert } = require('../services/socket');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // GET /api/alerts/:careHomeId - All alerts for a care home
 router.get('/:careHomeId', async (req, res) => {

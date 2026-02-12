@@ -1,8 +1,8 @@
+const { validate, pinLoginSchema } = require('../lib/validators');
 const { checkPinRateLimit, recordPinAttempt } = require("../middleware/apiAuth");
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // POST /api/tablet/login — Username + PIN login
 router.post('/login', async (req, res) => {

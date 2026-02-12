@@ -6,9 +6,7 @@
 const { CognitoIdentityProviderClient, GetUserCommand } = require('@aws-sdk/client-cognito-identity-provider');
 const jwt = require('jsonwebtoken');
 const jwksClient = require('jwks-rsa');
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const COGNITO_REGION = process.env.AWS_REGION || 'eu-west-2';
 const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || 'eu-west-2_sozTMWhUG';

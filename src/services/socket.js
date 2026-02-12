@@ -34,8 +34,6 @@ const { PrismaClient } = require('@prisma/client');
 const { cacheSet, cacheGet, cacheDelete, publish } = require('./redis');
 const { sendPushToFamily } = require('./pushNotification');
 
-const prisma = new PrismaClient();
-
 // In-memory presence tracking (backed by Redis when available)
 const connectedUsers = new Map(); // socketId -> { userId, role, careHomeId, residentId }
 const userSockets = new Map();    // `${role}:${userId}` -> Set<socketId>
@@ -769,8 +767,7 @@ function startEscalationTimer(alertId, careHomeId, io) {
   if (escalationTimers.has(alertId)) return;
   const timer = setTimeout(async () => {
     try {
-      const { PrismaClient } = require('@prisma/client');
-      const prisma = new PrismaClient();
+      const prisma = require('../lib/prisma');
       const alert = await prisma.alert.findUnique({ where: { id: alertId } });
       if (alert && !alert.isResolved) {
         // Update severity to critical

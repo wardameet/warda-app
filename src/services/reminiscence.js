@@ -3,8 +3,7 @@
  * P1 Item 9: Reminiscence & Life Story
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const STORY_TRIGGERS = [
   /I\s+(used\s+to|remember|recall|once|back\s+in|when\s+I\s+was|in\s+my\s+day)/i,

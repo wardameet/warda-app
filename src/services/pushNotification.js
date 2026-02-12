@@ -3,8 +3,7 @@
  * Sends web push notifications to family members
  */
 const webpush = require('web-push');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Configure VAPID
 webpush.setVapidDetails(

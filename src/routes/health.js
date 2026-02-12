@@ -9,7 +9,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { getRedisClient } = require('../services/redis');
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Basic health check
 router.get('/', (req, res) => {

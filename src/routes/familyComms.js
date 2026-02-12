@@ -1,3 +1,4 @@
+const { validate, messageSchema } = require('../lib/validators');
 const { requireAuth } = require("../middleware/apiAuth");
 // ============================================================
 // WARDA — Family Communication Flow
@@ -6,8 +7,7 @@ const { requireAuth } = require("../middleware/apiAuth");
 
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 const multer = require('multer');
 const { uploadPhoto, uploadVoiceMessage, getSignedPhotoUrl } = require('../services/s3');
 
