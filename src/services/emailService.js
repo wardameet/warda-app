@@ -396,3 +396,23 @@ module.exports = {
   sendFamilyInvitationEmail,
   sendDispatchEmail
 };
+
+// ─── Auto-verify before sending (sandbox mode) ──────────────
+const { verifyEmail, isEmailVerified } = require('./sesVerifier');
+
+async function sendEmailSafe({ to, subject, html, text }) {
+  const emails = Array.isArray(to) ? to : [to];
+  // Auto-verify any unverified recipients
+  for (const email of emails) {
+    const verified = await isEmailVerified(email);
+    if (!verified) {
+      console.log(`[SES] Auto-verifying ${email} before send...`);
+      await verifyEmail(email);
+      // Note: email won't arrive until recipient clicks verification link
+      return { success: false, pending: true, message: `Verification email sent to ${email}. They must click the link before receiving Warda emails.` };
+    }
+  }
+  return sendEmail({ to, subject, html, text });
+}
+
+module.exports.sendEmailSafe = sendEmailSafe;

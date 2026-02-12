@@ -49,7 +49,7 @@ router.post('/register', async (req, res) => {
       const plan = plans[planId];
       if (plan) {
         subscription = await prisma.subscription.create({
-          data: { email, name: `${firstName} ${lastName}`, planId, planName: plan.name, amount: plan.amount, status: 'trial', currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) }
+          data: { email, name: `${firstName} ${lastName}`, planId, planName: plan.name, amount: plan.amount, status: 'active', currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) }
         });
       }
     }

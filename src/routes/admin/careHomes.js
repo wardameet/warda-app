@@ -1,3 +1,4 @@
+const { verifyEmail } = require("../../services/sesVerifier");
 /**
  * Admin Care Home Routes
  * CRUD operations for care home management

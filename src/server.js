@@ -44,6 +44,8 @@ const publicQuestionnaireRoutes = require("./routes/publicQuestionnaire");
 const transcribeRoutes = require("./routes/transcribe");
 const orientationRoutes = require("./routes/orientation");
 const familyCommsRoutes = require("./routes/familyComms");
+const musicRoutes = require("./routes/music");
+const faithRoutes = require("./routes/faith");
 const { startProactiveEngine } = require("./services/proactive");
 const { startMedicationReminders } = require('./services/medicationReminder');
 
@@ -57,6 +59,8 @@ const adminOrderRoutes = require('./routes/admin/orders');
 const adminCommissionRoutes = require('./routes/admin/commissions');
 const adminInvoiceRoutes = require('./routes/admin/invoices');
 const emailRoutes = require("./routes/admin/emails");
+const questionnaireTemplateRoutes = require("./routes/admin/questionnaireTemplate");
+const sesRoutes = require("./routes/admin/ses");
 const deviceCodesRoutes = require('./routes/admin/deviceCodes');
 const tabletAuthRoutes = require('./routes/tabletAuth');
 
@@ -138,6 +142,8 @@ app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/commissions', adminCommissionRoutes);
 app.use('/api/admin/invoices', adminInvoiceRoutes);
 app.use('/api/admin/emails', emailRoutes);
+app.use("/api/admin/questionnaire-template", questionnaireTemplateRoutes);
+app.use("/api/admin/ses", sesRoutes);
 app.use('/api/admin/device-codes', deviceCodesRoutes);
 app.use('/api/admin/residents', adminResidentRoutes);
 app.use('/api/admin/staff', adminStaffRoutes);
@@ -153,6 +159,8 @@ app.use("/api/purpose", purposeRoutes);
 app.use("/api/gp", gpRoutes);
 app.use("/api/admin/gp", gpRoutes);
 app.use("/api/family-comms", familyCommsRoutes);
+app.use("/api/music", musicRoutes);
+app.use("/api/faith", faithRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

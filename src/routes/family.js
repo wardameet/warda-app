@@ -1,3 +1,4 @@
+const { verifyEmail } = require("../services/sesVerifier");
 /**
  * Family Routes
  * Public-facing API for family members

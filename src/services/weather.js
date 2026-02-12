@@ -5,12 +5,23 @@
 
 const WEATHER_API_KEY = process.env.WEATHERAPI_KEY || '';
 
-// ─── Weather Cache (reduce API calls) ───────────────────────
+// ─── Weather Cache: Redis (ElastiCache) → in-memory fallback ─
+const { getRedisClient } = require('./redis');
 let weatherCache = {};
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+const REDIS_TTL = 1800; // 30 minutes in seconds
 
 // ─── Fetch Weather Data ─────────────────────────────────────
 async function getWeather(location = 'Edinburgh') {
+  // Try Redis first, then in-memory
+  try {
+    const redis = getRedisClient();
+    if (redis) {
+      const cached = await redis.get(`weather:${location}`);
+      if (cached) return JSON.parse(cached);
+    }
+  } catch (e) { /* Redis unavailable, fall through */ }
+
   if (weatherCache[location] && (Date.now() - weatherCache[location].fetchedAt < CACHE_DURATION)) {
     return weatherCache[location].data;
   }
@@ -44,7 +55,12 @@ async function getWeather(location = 'Edinburgh') {
       friendlyDescription: getFriendlyWeather(data.current)
     };
 
+    // Cache in Redis (if available) + in-memory
     weatherCache[location] = { data: weather, fetchedAt: Date.now() };
+    try {
+      const redis = getRedisClient();
+      if (redis) await redis.set(`weather:${location}`, JSON.stringify(weather), 'EX', REDIS_TTL);
+    } catch (e) { /* Redis write failed, in-memory still works */ }
     return weather;
 
   } catch (error) {
