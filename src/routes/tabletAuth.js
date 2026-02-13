@@ -1,3 +1,5 @@
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { validate, pinLoginSchema } = require('../lib/validators');
 const { checkPinRateLimit, recordPinAttempt } = require("../middleware/apiAuth");
 const express = require('express');
@@ -24,7 +26,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Username not found' });
     }
 
-    if (!user.pin) {
+    if (!user.pin && !user.pinHash) {
       return res.status(401).json({ success: false, error: 'PIN not set. Please contact your family or care team.' });
     }
 
@@ -54,7 +56,12 @@ router.post('/login', async (req, res) => {
       } : null,
     };
 
-    res.json({ success: true, resident, message: `Welcome back, ${resident.preferredName}!` });
+    const tabletToken = jwt.sign(
+      { sub: resident.id, userId: resident.id, role: 'tablet', type: 'pin' },
+      process.env.JWT_SECRET || process.env.CAREHOME_JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    res.json({ success: true, resident, token: tabletToken, message: `Welcome back, ${resident.preferredName}!` });
   } catch (error) {
     console.error('Tablet login error:', error);
     res.status(500).json({ success: false, error: 'Login failed' });

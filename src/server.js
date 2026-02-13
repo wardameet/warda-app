@@ -91,7 +91,19 @@ const io = new Server(httpServer, {
 
 // Middleware
 app.use(helmet({
-  contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } // Disable for development
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://sdk.amazonaws.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "https://*.amazonaws.com"],
+      mediaSrc: ["'self'", "blob:", "https://*.amazonaws.com"],
+      connectSrc: ["'self'", "wss:", "ws:", "https://api.meetwarda.com", "https://*.amazonaws.com", "https://*.amazoncognito.com"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  }, crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(cors({
   origin: ['https://app.meetwarda.com', 'https://admin.meetwarda.com', 'https://staff.meetwarda.com', 'https://portal.meetwarda.com', 'https://family.meetwarda.com', 'https://gp.meetwarda.com', 'https://meetwarda.com', 'http://13.40.187.182:3000', 'http://13.40.187.182:3002', 'http://13.40.187.182:3003', 'http://localhost:3000', 'http://localhost:3002', 'http://localhost:3003'],
@@ -109,6 +121,42 @@ app.use((req, res, next) => {
   next();
 });
 // securityHeaders applied
+
+// ─── Rate Limiting ──────────────────────────────────────
+const rateLimit = require('express-rate-limit');
+
+// Global rate limit: 100 requests per minute per IP
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', globalLimiter);
+
+// Strict limit for auth endpoints: 10 per minute
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Too many login attempts, please wait' },
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/admin/auth/login', authLimiter);
+app.use('/api/tablet/auth', authLimiter);
+app.use('/api/family/login', authLimiter);
+app.use('/api/gp/login', authLimiter);
+
+// Claude API rate limit: 30 per minute (expensive)
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Too many AI requests, please slow down' },
+});
+app.use('/api/conversation', aiLimiter);
+app.use('/api/voice', aiLimiter);
+
+
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

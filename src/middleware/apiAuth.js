@@ -142,12 +142,19 @@ async function tabletAuth(req, res, next) {
     } catch (e) { /* Fall through */ }
   }
 
-  // Check for residentId in params or query (for tablet-specific routes)
-  const residentId = req.params.userId || req.params.residentId || req.query.residentId;
+  // ResidentId from URL params — only trust if request comes from a known tablet IP or has device cookie
+  // This is a fallback for tablet routes that pass residentId in the URL
+  // In production, this should be replaced with proper tablet device auth
+  const residentId = req.params.userId || req.params.residentId;
   if (residentId) {
     try {
-      const user = await prisma.user.findUnique({ where: { id: residentId }, select: { id: true, status: true } });
-      if (user && user.status === 'ACTIVE') { req.user = user; req.userId = user.id; return next(); }
+      // Only allow if there's also a device identifier or the request is from localhost/internal
+      const isInternal = req.ip === '127.0.0.1' || req.ip === '::1' || req.headers['x-internal-request'];
+      const hasDeviceCookie = req.cookies?.deviceId || req.headers['x-device-session'];
+      if (isInternal || hasDeviceCookie) {
+        const user = await prisma.user.findUnique({ where: { id: residentId }, select: { id: true, status: true } });
+        if (user && user.status === 'ACTIVE') { req.user = user; req.userId = user.id; return next(); }
+      }
     } catch (e) { /* Fall through */ }
   }
 

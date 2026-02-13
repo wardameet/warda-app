@@ -16,12 +16,12 @@ var jwksClient = require('jwks-rsa');
 
 var prisma = require('../lib/prisma');
 var cognito = new CognitoIdentityProviderClient({ region: 'eu-west-2' });
-var USER_POOL_ID = 'eu-west-2_sozTMWhUG';
-var CLIENT_ID = '6ktpvr06ac5dfig41s6394l25';
+var USER_POOL_ID = process.env.COGNITO_USER_POOL_ID;
+var CLIENT_ID = process.env.COGNITO_CLIENT_ID;
 
 // JWKS client for token verification
 var jwks = jwksClient({
-  jwksUri: 'https://cognito-idp.eu-west-2.amazonaws.com/' + USER_POOL_ID + '/.well-known/jwks.json',
+  jwksUri: `https://cognito-idp.${process.env.AWS_REGION || 'eu-west-2'}.amazonaws.com/${USER_POOL_ID}/.well-known/jwks.json`,
   cache: true
 });
 
@@ -54,7 +54,7 @@ async function familyAuth(req, res, next) {
     // Fallback: local JWT (from bcrypt login)
     if (email === null || email === undefined) {
       try {
-        var localVerified = jwt.verify(token, process.env.JWT_SECRET || 'warda-family-secret-2026');
+        var localVerified = jwt.verify(token, process.env.FAMILY_JWT_SECRET);
         email = localVerified.email;
       } catch (localErr) {
         return res.status(401).json({ success: false, error: 'Authentication failed' });
@@ -192,7 +192,7 @@ router.post('/login', async function(req, res) {
       if (adminUser && adminUser.tempPassword) {
         var match = await bcrypt.compare(password, adminUser.tempPassword);
         if (match) {
-          accessToken = jwt.sign({ sub: adminUser.id, email: adminUser.email, role: adminUser.role }, process.env.JWT_SECRET || 'warda-family-secret-2026', { expiresIn: '7d' });
+          accessToken = jwt.sign({ sub: adminUser.id, email: adminUser.email, role: adminUser.role }, process.env.FAMILY_JWT_SECRET, { expiresIn: '7d' });
           refreshToken = accessToken;
           idToken = accessToken;
         } else {

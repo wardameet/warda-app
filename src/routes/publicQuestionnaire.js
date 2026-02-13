@@ -40,6 +40,11 @@ router.get('/:token', async (req, res) => {
       include: { resident: { select: { id: true, firstName: true, lastName: true, preferredName: true, dateOfBirth: true, roomNumber: true, careHome: { select: { name: true } } } } }
     });
     if (!profile) return res.status(404).json({ error: 'Invalid or expired link' });
+    // Check token expiry (30 days)
+    if (profile.updatedAt) {
+      const daysSinceCreated = (Date.now() - new Date(profile.updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceCreated > 30) return res.status(410).json({ error: 'This questionnaire link has expired. Please request a new one.' });
+    }
     
     res.json({ success: true, profile, residentName: profile.resident?.preferredName || profile.resident?.firstName || 'Resident' });
   } catch (err) {
