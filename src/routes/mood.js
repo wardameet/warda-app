@@ -108,9 +108,9 @@ router.get('/care-home/:careHomeId', async (req, res) => {
         catch(e) { return parseInt(m.value) || 5; }
       });
       const avgScore = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : null;
-      const activeAlerts = await prisma.alert.count({ where: { userId: resident.id, status: 'ACTIVE' } });
+      const activeAlerts = await prisma.alert.count({ where: { userId: resident.id, isResolved: false } });
       const weekConversations = await prisma.conversation.count({
-        where: { userId: resident.id, createdAt: { gte: sevenDaysAgo } }
+        where: { userId: resident.id, startedAt: { gte: sevenDaysAgo } }
       });
       let latestScore = null;
       if (latestMood) {
