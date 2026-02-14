@@ -91,7 +91,7 @@ router.get('/care-home/:careHomeId', async (req, res) => {
   try {
     const { careHomeId } = req.params;
     const residents = await prisma.user.findMany({
-      where: { careHomeId, role: 'RESIDENT' },
+      where: { careHomeId },
       select: { id: true, firstName: true, lastName: true, roomNumber: true }
     });
     const sevenDaysAgo = new Date();

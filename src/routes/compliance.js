@@ -13,8 +13,8 @@ router.get('/cqc-report', requireRole('SUPER_ADMIN', 'MANAGER'), async (req, res
     const where = careHomeId ? { careHomeId } : {};
 
     const [residents, conversations, messages, alerts, healthLogs, medications] = await Promise.all([
-      prisma.user.findMany({ where: { ...where, role: 'RESIDENT', status: 'ACTIVE' }, select: { id: true, firstName: true, lastName: true, createdAt: true } }),
-      prisma.conversation.findMany({ where: { startedAt: { gte: periodStart, lte: periodEnd } } }),
+      prisma.user.findMany({ where: { ...where, role: 'RESIDENT', isResolved: false }, select: { id: true, firstName: true, lastName: true, createdAt: true } }),
+      prisma.conversation.findMany({ where: { createdAt: { gte: periodStart, lte: periodEnd } } }),
       prisma.message.findMany({ where: { createdAt: { gte: periodStart, lte: periodEnd } } }),
       prisma.alert.findMany({ where: { createdAt: { gte: periodStart, lte: periodEnd } } }),
       prisma.healthLog.findMany({ where: { createdAt: { gte: periodStart, lte: periodEnd } } }),
@@ -100,7 +100,7 @@ router.get('/summary', requireRole('SUPER_ADMIN', 'MANAGER'), async (req, res) =
   try {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const [residents, conversations, healthLogs, alerts, subscriptions] = await Promise.all([
-      prisma.user.count({ where: { role: 'RESIDENT', status: 'ACTIVE' } }),
+      prisma.user.count({ where: { role: 'RESIDENT', isResolved: false } }),
       prisma.conversation.count({ where: { startedAt: { gte: thirtyDaysAgo } } }),
       prisma.healthLog.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
       prisma.alert.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),

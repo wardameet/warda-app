@@ -61,8 +61,7 @@ router.post('/send', async (req, res) => {
         senderId,
         recipientId,
         content,
-        messageType: messageType || 'text',
-        status: 'sent'
+        type: messageType || 'text',
       }
     });
 
@@ -94,7 +93,6 @@ router.post('/send-via-warda', async (req, res) => {
         recipientId,
         content: transcribedContent || spokenText,
         messageType: 'text',
-        status: 'sent',
         sentViaWarda: true
       }
     });

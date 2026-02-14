@@ -34,9 +34,9 @@ router.post('/login', async (req, res) => {
     let passwordMatch = false;
     try {
       const bcrypt = require('bcryptjs');
-      passwordMatch = await bcrypt.compare(password, adminUser.passwordHash);
+      passwordMatch = await bcrypt.compare(password, adminUser.tempPassword);
     } catch(e) {
-      passwordMatch = (password === adminUser.passwordHash);
+      passwordMatch = (password === adminUser.tempPassword);
     }
     if (!passwordMatch ) return res.status(401).json({ error: 'Invalid credentials' });
     const jwt = require('jsonwebtoken');
