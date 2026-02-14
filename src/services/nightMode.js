@@ -27,7 +27,7 @@ async function generateBedtimeMessage(userId) {
       where: { id: userId },
       include: { 
         profile: true,
-        familyContacts: { where: { isActive: true }, take: 3 }
+        familyContacts: { take: 3 }
       }
     });
     if (!user) return null;
@@ -98,7 +98,7 @@ async function generateMorningMessage(userId) {
       where: { id: userId },
       include: { 
         profile: true,
-        familyContacts: { where: { isActive: true }, take: 1 }
+        familyContacts: { take: 1 }
       }
     });
     if (!user) return null;
