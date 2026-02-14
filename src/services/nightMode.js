@@ -112,8 +112,8 @@ async function generateMorningMessage(userId) {
     let dayPreview = '';
     try {
       const events = await prisma.calendarEvent.findMany({
-        where: { userId, startTime: { gte: todayStart, lt: todayEnd } },
-        orderBy: { startTime: 'asc' },
+        where: { userId, date: { gte: todayStart, lt: todayEnd } },
+        orderBy: { date: 'asc' },
         take: 3
       });
       if (events.length > 0) {
@@ -126,7 +126,7 @@ async function generateMorningMessage(userId) {
       const unreadMessages = await prisma.message.count({
         where: {
           recipientId: userId,
-          readAt: null,
+          isDelivered: false,
           createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
         }
       });
