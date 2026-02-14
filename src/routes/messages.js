@@ -54,14 +54,22 @@ router.get('/:residentId/:contactId', async (req, res) => {
 // Send text message
 router.post('/send', async (req, res) => {
   try {
-    const { senderId, recipientId, content, messageType } = req.body;
+    const { senderId, recipientId, content, messageType, userId, sender, senderName, senderType } = req.body;
+
+    if (!content || !userId) {
+      return res.status(400).json({ success: false, error: 'content and userId are required' });
+    }
 
     const message = await prisma.message.create({
       data: {
-        senderId,
-        recipientId,
         content,
+        sender: sender || senderName || 'Unknown',
         type: messageType || 'text',
+        userId,
+        senderId: senderId || null,
+        recipientId: recipientId || null,
+        senderName: senderName || null,
+        senderType: senderType || null,
       }
     });
 
