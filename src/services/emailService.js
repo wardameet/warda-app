@@ -1,44 +1,41 @@
 // ============================================================
 // WARDA - Email Service
-// Uses AWS SES for sending transactional emails
+// Uses IONOS SMTP via nodemailer for sending transactional emails
 // ============================================================
 
-const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+const nodemailer = require('nodemailer');
 
-const ses = new SESClient({ 
-  region: process.env.AWS_REGION || 'eu-west-2',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
-  }
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.ionos.co.uk',
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER || 'hello@meetwarda.com',
+    pass: process.env.SMTP_PASS
+  },
+  tls: { rejectUnauthorized: false }
 });
 
-const FROM_EMAIL = 'hello@meetwarda.com';
+const FROM_EMAIL = process.env.SMTP_USER || 'hello@meetwarda.com';
 const FROM_NAME = 'Meet Warda';
 
 // ─── Base Email Sender ─────────────────────────────────────────
 async function sendEmail({ to, subject, html, text }) {
-  const params = {
-    Source: `${FROM_NAME} <${FROM_EMAIL}>`,
-    Destination: { ToAddresses: Array.isArray(to) ? to : [to] },
-    Message: {
-      Subject: { Data: subject, Charset: 'UTF-8' },
-      Body: {
-        Html: { Data: html, Charset: 'UTF-8' },
-        Text: { Data: text || html.replace(/<[^>]*>/g, ''), Charset: 'UTF-8' }
-      }
-    }
+  const mailOptions = {
+    from: `${FROM_NAME} <${FROM_EMAIL}>`,
+    to: Array.isArray(to) ? to.join(', ') : to,
+    subject,
+    html,
+    text: text || html.replace(/<[^>]*>/g, '')
   };
-
   try {
-    const result = await ses.send(new SendEmailCommand(params));
-    console.log('Email sent:', result.MessageId);
-    return { success: true, messageId: result.MessageId };
+    const result = await transporter.sendMail(mailOptions);
+    console.log('Email sent via IONOS SMTP:', result.messageId);
+    return { success: true, messageId: result.messageId };
   } catch (error) {
-    console.error('Email send error:', error);
+    console.error('SMTP email error:', error.message);
     return { success: false, error: error.message };
   }
-}
 
 // ─── Email Header/Footer Templates ─────────────────────────────
 const emailHeader = (title) => `
