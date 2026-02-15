@@ -15,7 +15,9 @@ router.use(adminAuth);
 // POST /api/admin/emails/welcome - Send welcome email with credentials
 router.post('/welcome', requireRole('SUPER_ADMIN'), async (req, res) => {
   try {
-    const { userId, pin, tempPassword } = req.body;
+    const { userId, pin, tempPassword: providedPassword } = req.body;
+    const crypto = require('crypto');
+    const bcrypt = require('bcryptjs');
     
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -32,6 +34,33 @@ router.post('/welcome', requireRole('SUPER_ADMIN'), async (req, res) => {
     const primaryFamily = user.familyContacts[0];
     if (!primaryFamily?.email) {
       return res.status(400).json({ error: 'No primary family contact with email' });
+    }
+
+    // Auto-generate temp password if not provided
+    const tempPassword = providedPassword || crypto.randomBytes(4).toString('hex') + '!A1';
+    
+    // Hash and store in AdminUser for family login
+    const hashedPassword = await bcrypt.hash(tempPassword, 12);
+    
+    // Create or update AdminUser for family member
+    const existingAdmin = await prisma.adminUser.findFirst({ where: { email: primaryFamily.email.toLowerCase() } });
+    if (existingAdmin) {
+      await prisma.adminUser.update({
+        where: { id: existingAdmin.id },
+        data: { tempPassword: hashedPassword, mustChangePassword: true, linkedResidentId: user.id }
+      });
+    } else {
+      await prisma.adminUser.create({
+        data: {
+          email: primaryFamily.email.toLowerCase(),
+          name: primaryFamily.name,
+          role: 'FAMILY_B2B',
+          tempPassword: hashedPassword,
+          mustChangePassword: true,
+          linkedResidentId: user.id,
+          careHomeId: user.careHomeId
+        }
+      });
     }
     
     const result = await emailService.sendWelcomeEmail({

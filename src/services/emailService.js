@@ -87,7 +87,7 @@ const emailFooter = `
 `;
 
 // ─── 3.2 Welcome Email (with PIN, temp password) ───────────────
-async function sendWelcomeEmail({ to, residentName, pin, tempPassword, familyName, portalUrl = 'https://portal.meetwarda.com' }) {
+async function sendWelcomeEmail({ to, residentName, pin, tempPassword, familyName, portalUrl = 'https://family.meetwarda.com' }) {
   const subject = `Welcome to Warda - Login Details for ${residentName}`;
   
   const html = emailHeader('Welcome to Warda') + `
